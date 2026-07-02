@@ -1,0 +1,2115 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>吃点啥 - 交互原型</title>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    :root {
+      --bg: #f7f4ee;
+      --surface: #fffdf8;
+      --surface-strong: #ffffff;
+      --ink: #26211d;
+      --muted: #746a61;
+      --soft: #eee5da;
+      --line: #e6d8c9;
+      --tomato: #df583d;
+      --tomato-dark: #bd3f2c;
+      --gold: #f2b64d;
+      --leaf: #4d8f65;
+      --sky: #eaf3f1;
+      --shadow: 0 18px 55px rgba(74, 46, 24, .18);
+      --radius: 8px;
+      color-scheme: light;
+      font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 14% 12%, rgba(242, 182, 77, .20), transparent 26%),
+        linear-gradient(135deg, #fbf4e9 0%, #f7f4ee 48%, #eaf3f1 100%);
+      display: grid;
+      place-items: center;
+      padding: 28px 14px;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    .stage {
+      width: min(100%, 430px);
+      display: grid;
+      gap: 14px;
+    }
+
+    .prototype-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #5f5145;
+      font-size: 13px;
+      line-height: 1.4;
+      padding: 0 4px;
+    }
+
+    .prototype-title strong {
+      color: var(--ink);
+      font-size: 15px;
+    }
+
+    .phone {
+      width: min(100%, 390px);
+      height: min(844px, calc(100vh - 80px));
+      min-height: 720px;
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid rgba(114, 91, 68, .24);
+      border-radius: 30px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .status-bar {
+      height: 34px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 22px 0;
+      font-size: 12px;
+      color: #564940;
+      letter-spacing: 0;
+      background: var(--surface);
+    }
+
+    .status-icons {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .app {
+      height: calc(100% - 34px);
+      display: grid;
+      grid-template-rows: 1fr 72px;
+      background: linear-gradient(180deg, #fffdf8 0%, #f9f2ea 100%);
+    }
+
+    .screen {
+      display: none;
+      min-height: 0;
+      overflow: auto;
+      padding: 18px 18px 24px;
+      scrollbar-width: none;
+    }
+
+    .screen::-webkit-scrollbar {
+      display: none;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .brand {
+      display: grid;
+      gap: 2px;
+    }
+
+    .brand h1,
+    .screen-title h2 {
+      margin: 0;
+      letter-spacing: 0;
+      line-height: 1.15;
+      color: var(--ink);
+    }
+
+    .brand h1 {
+      font-size: 28px;
+      font-weight: 850;
+    }
+
+    .brand p,
+    .screen-title p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .icon-button {
+      width: 40px;
+      height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #604a3b;
+      background: #fff5e8;
+      border: 1px solid #ead7bf;
+      border-radius: var(--radius);
+      transition: .16s ease;
+      flex: 0 0 auto;
+    }
+
+    .icon-button:active,
+    .pill-button:active,
+    .primary-button:active,
+    .choice-card:active,
+    .meal-card:active,
+    .result-card:active {
+      transform: translateY(1px) scale(.99);
+    }
+
+    .hero-photo {
+      height: 148px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: relative;
+      background: #e9ded2;
+      margin: 10px 0 14px;
+    }
+
+    .hero-photo img,
+    .photo-thumb img,
+    .detail-hero img,
+    .restaurant-hero img,
+    .mini-photo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .hero-photo::after,
+    .detail-hero::after,
+    .restaurant-hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, transparent 20%, rgba(0, 0, 0, .46) 100%);
+    }
+
+    .hero-copy {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 12px;
+      color: white;
+      z-index: 1;
+      display: grid;
+      gap: 4px;
+    }
+
+    .hero-copy strong {
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .hero-copy span {
+      font-size: 12px;
+      line-height: 1.35;
+      color: rgba(255, 255, 255, .88);
+    }
+
+    .prompt-box {
+      background: var(--surface-strong);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      box-shadow: 0 10px 24px rgba(81, 49, 24, .07);
+      display: grid;
+      gap: 10px;
+    }
+
+    .home-search-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .prompt-title {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .prompt-title strong {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--ink);
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .prompt-title small {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+      text-align: right;
+      max-width: 128px;
+    }
+
+    .input-row {
+      display: grid;
+      grid-template-columns: 1fr 44px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .input-row input {
+      min-width: 0;
+      height: 44px;
+      border-radius: var(--radius);
+      border: 1px solid #e7d8c7;
+      background: #fffaf3;
+      padding: 0 12px;
+      color: var(--ink);
+      outline: none;
+    }
+
+    .input-row input:focus {
+      border-color: var(--tomato);
+      box-shadow: 0 0 0 3px rgba(223, 88, 61, .12);
+    }
+
+    .chips {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding-bottom: 2px;
+    }
+
+    .chips::-webkit-scrollbar {
+      display: none;
+    }
+
+    .chip {
+      white-space: nowrap;
+      color: #5d4c3f;
+      background: #fff3e2;
+      border: 1px solid #ead7bf;
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 12px;
+      line-height: 1;
+      transition: .16s ease;
+    }
+
+    .chip.selected,
+    .chip:active {
+      color: white;
+      background: var(--tomato);
+      border-color: var(--tomato);
+    }
+
+    .choice-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .choice-card {
+      text-align: left;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      display: grid;
+      gap: 12px;
+      min-height: 126px;
+      box-shadow: 0 12px 26px rgba(81, 49, 24, .07);
+      transition: .16s ease;
+    }
+
+    .choice-card .choice-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: var(--radius);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      background: var(--tomato);
+    }
+
+    .choice-card:nth-child(2) .choice-icon {
+      background: var(--leaf);
+    }
+
+    .choice-card strong {
+      font-size: 16px;
+      line-height: 1.25;
+      color: var(--ink);
+    }
+
+    .choice-card span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin: 18px 0 10px;
+    }
+
+    .section-head h3 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.25;
+    }
+
+    .section-head button {
+      color: var(--tomato-dark);
+      background: transparent;
+      font-size: 12px;
+      padding: 4px 0;
+    }
+
+    .today-list,
+    .result-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .mini-card,
+    .result-card,
+    .pref-card,
+    .empty-card {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 10px 24px rgba(81, 49, 24, .06);
+    }
+
+    .mini-card {
+      display: grid;
+      grid-template-columns: 78px 1fr;
+      gap: 10px;
+      padding: 8px;
+      text-align: left;
+      width: 100%;
+    }
+
+    .mini-photo {
+      height: 74px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #eee0d1;
+    }
+
+    .mini-copy {
+      min-width: 0;
+      display: grid;
+      gap: 5px;
+      align-content: center;
+    }
+
+    .mini-copy strong {
+      font-size: 14px;
+      line-height: 1.25;
+    }
+
+    .mini-copy span,
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag {
+      color: #72523a;
+      background: #fff1de;
+      border-radius: 999px;
+      padding: 4px 7px;
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .tag.green {
+      color: #356f4a;
+      background: #e8f3ec;
+    }
+
+    .screen-title {
+      display: grid;
+      grid-template-columns: 40px 1fr 40px;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .screen-title h2 {
+      font-size: 22px;
+      text-align: left;
+    }
+
+    .screen-title p {
+      grid-column: 2 / 4;
+      margin-top: -6px;
+    }
+
+    .ai-summary {
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, #fff4df, #eef7ef);
+      border: 1px solid #ead8bd;
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .summary-line {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      color: #5d4f43;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .summary-line svg {
+      flex: 0 0 auto;
+      color: var(--tomato);
+      margin-top: 1px;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: #f0e5d9;
+      border: 1px solid #e4d2bf;
+      border-radius: var(--radius);
+      padding: 4px;
+      margin: 10px 0 12px;
+      gap: 4px;
+    }
+
+    .segmented button {
+      height: 36px;
+      border-radius: 6px;
+      color: #6d5e52;
+      background: transparent;
+      font-size: 13px;
+    }
+
+    .segmented button.active {
+      color: var(--ink);
+      background: white;
+      box-shadow: 0 5px 14px rgba(82, 49, 25, .10);
+      font-weight: 700;
+    }
+
+    .result-card {
+      padding: 8px;
+      display: grid;
+      grid-template-columns: 104px 1fr;
+      gap: 10px;
+      text-align: left;
+      width: 100%;
+      position: relative;
+    }
+
+    .meal-card {
+      width: 100%;
+      text-align: left;
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 10px 24px rgba(81, 49, 24, .06);
+      padding: 9px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .meal-card-top {
+      display: grid;
+      grid-template-columns: 104px 1fr;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .meal-dish-list {
+      display: grid;
+      gap: 7px;
+      padding: 9px;
+      border-radius: 6px;
+      background: #fff8ee;
+    }
+
+    .dish-line {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 8px;
+      align-items: center;
+      color: #4f463e;
+      font-size: 12px;
+      line-height: 1.35;
+      min-width: 0;
+    }
+
+    .course-badge {
+      color: white;
+      background: var(--tomato);
+      border-radius: 999px;
+      padding: 4px 7px;
+      font-size: 11px;
+      line-height: 1;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .course-badge.veg {
+      background: var(--leaf);
+    }
+
+    .course-badge.soup {
+      background: #4b8793;
+    }
+
+    .course-badge.staple {
+      background: #9b744b;
+    }
+
+    .photo-thumb {
+      height: 104px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #eee0d1;
+    }
+
+    .result-copy {
+      min-width: 0;
+      display: grid;
+      gap: 6px;
+      align-content: start;
+      padding-right: 4px;
+    }
+
+    .result-copy strong {
+      font-size: 16px;
+      line-height: 1.25;
+      color: var(--ink);
+    }
+
+    .reason {
+      color: #5d534a;
+      font-size: 12px;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 2px;
+    }
+
+    .pill-button,
+    .primary-button,
+    .ghost-button {
+      min-height: 36px;
+      border-radius: var(--radius);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 0 12px;
+      font-size: 13px;
+      line-height: 1;
+      transition: .16s ease;
+    }
+
+    .pill-button {
+      color: #704939;
+      background: #fff1de;
+      border: 1px solid #ead7bf;
+    }
+
+    .primary-button {
+      color: white;
+      background: var(--tomato);
+      border: 1px solid var(--tomato);
+      font-weight: 700;
+    }
+
+    .ghost-button {
+      color: #5f5044;
+      background: #fffaf3;
+      border: 1px solid var(--line);
+    }
+
+    .full {
+      width: 100%;
+    }
+
+    .location-card {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .location-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .location-name {
+      min-width: 0;
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      color: #423933;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .location-name span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .detail-hero,
+    .restaurant-hero {
+      height: 210px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: relative;
+      background: #e9ded2;
+      margin: -4px 0 12px;
+    }
+
+    .detail-hero-copy {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      color: white;
+      z-index: 1;
+      display: grid;
+      gap: 8px;
+    }
+
+    .detail-hero-copy h2 {
+      margin: 0;
+      font-size: 25px;
+      line-height: 1.14;
+      letter-spacing: 0;
+    }
+
+    .detail-hero-copy .tag {
+      color: white;
+      background: rgba(255, 255, 255, .22);
+      border: 1px solid rgba(255, 255, 255, .28);
+      backdrop-filter: blur(8px);
+    }
+
+    .detail-block {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 13px;
+      margin-bottom: 10px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .detail-block h3 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .ingredient-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .shopping-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .ingredient {
+      min-width: 0;
+      padding: 9px;
+      border-radius: 6px;
+      background: #fff7ec;
+      color: #51453c;
+      font-size: 12px;
+      line-height: 1.35;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .ingredient b {
+      font-weight: 700;
+    }
+
+    .step-list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 26px 1fr;
+      gap: 9px;
+      color: #50473f;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .step-number {
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      background: var(--tomato);
+      color: white;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .restaurant-info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .info-tile {
+      background: #fff7ec;
+      border-radius: 6px;
+      padding: 10px;
+      display: grid;
+      gap: 5px;
+    }
+
+    .info-tile span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .info-tile strong {
+      color: var(--ink);
+      font-size: 14px;
+      line-height: 1.25;
+    }
+
+    .bottom-nav {
+      height: 72px;
+      background: rgba(255, 253, 248, .96);
+      border-top: 1px solid #eadccb;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      padding: 7px 10px 9px;
+      gap: 4px;
+      backdrop-filter: blur(18px);
+    }
+
+    .nav-button {
+      border-radius: var(--radius);
+      color: #8a7665;
+      background: transparent;
+      display: grid;
+      place-items: center;
+      align-content: center;
+      gap: 3px;
+      font-size: 11px;
+      line-height: 1;
+      min-width: 0;
+    }
+
+    .nav-button.active {
+      color: var(--tomato-dark);
+      background: #fff1de;
+      font-weight: 700;
+    }
+
+    .nav-button svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .list-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .list-tabs .chip {
+      flex: 1;
+      text-align: center;
+    }
+
+    .pref-card {
+      padding: 13px;
+      display: grid;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .pref-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      color: #50463e;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .switch {
+      width: 46px;
+      height: 26px;
+      border-radius: 999px;
+      background: var(--leaf);
+      padding: 3px;
+      flex: 0 0 auto;
+    }
+
+    .switch::after {
+      content: "";
+      display: block;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: white;
+      margin-left: auto;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, .18);
+    }
+
+    .empty-card {
+      padding: 18px;
+      text-align: center;
+      color: #6d5f54;
+      display: grid;
+      gap: 8px;
+    }
+
+    .empty-card svg {
+      margin: 0 auto;
+      color: var(--tomato);
+    }
+
+    .toast {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 82px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      color: white;
+      background: rgba(38, 33, 29, .92);
+      border-radius: var(--radius);
+      padding: 12px 13px;
+      font-size: 13px;
+      line-height: 1.4;
+      z-index: 20;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, .20);
+    }
+
+    .toast.show {
+      display: flex;
+      animation: toast-in .18s ease-out;
+    }
+
+    .modal-backdrop {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: flex-end;
+      background: rgba(38, 33, 29, .35);
+      z-index: 30;
+      padding: 14px;
+    }
+
+    .modal-backdrop.show {
+      display: flex;
+    }
+
+    .modal-sheet {
+      width: 100%;
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, .22);
+    }
+
+    .modal-sheet h3 {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.25;
+    }
+
+    .modal-sheet p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    @keyframes toast-in {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 700px) {
+      body {
+        padding: 0;
+        background: var(--surface);
+        place-items: start;
+      }
+
+      .stage {
+        width: min(100vw, 390px);
+        height: 100vh;
+        margin: 0;
+      }
+
+      .prototype-title {
+        display: none;
+      }
+
+      .phone {
+        width: min(100vw, 390px);
+        height: 100vh;
+        min-height: 0;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <div class="prototype-title">
+      <span><strong>吃点啥</strong> Android MVP 交互原型</span>
+      <span>390px 手机预览</span>
+    </div>
+
+    <section class="phone" aria-label="吃点啥手机原型">
+      <div class="status-bar">
+        <span>11:05</span>
+        <div class="status-icons" aria-hidden="true">
+          <i data-lucide="signal" width="14" height="14"></i>
+          <i data-lucide="wifi" width="14" height="14"></i>
+          <i data-lucide="battery-full" width="15" height="15"></i>
+        </div>
+      </div>
+
+      <div class="app">
+        <section id="home-screen" class="screen active" data-tab="home">
+          <div class="topbar">
+            <div class="brand">
+              <h1>吃点啥</h1>
+              <p>把“随便”变成三五个好选择</p>
+            </div>
+            <button class="icon-button" type="button" aria-label="打开设置" onclick="showTab('settings')">
+              <i data-lucide="settings"></i>
+            </button>
+          </div>
+
+          <div class="hero-photo">
+            <img src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=900&q=80" alt="摆满蔬菜和主食的餐桌" />
+            <div class="hero-copy">
+              <strong>今晚要轻松一点？</strong>
+              <span>自己做和附近吃分开搜索，做饭还能生成一整套晚餐组合。</span>
+            </div>
+          </div>
+
+          <div class="home-search-stack">
+            <div class="prompt-box">
+              <div class="prompt-title">
+                <strong><i data-lucide="chef-hat" width="17" height="17"></i>自己做</strong>
+                <small>支持单道菜和组合菜单</small>
+              </div>
+              <div class="input-row">
+                <input id="recipe-need-input" type="text" value="两荤一素、一汤、主食、微辣" aria-label="输入在家做饭需求" />
+                <button class="primary-button" type="button" aria-label="生成做饭推荐" onclick="runRecipeRecommend()">
+                  <i data-lucide="sparkles"></i>
+                </button>
+              </div>
+              <div class="chips" aria-label="自己做快捷标签">
+                <button class="chip selected" type="button" onclick="toggleChip(this)">两荤一素</button>
+                <button class="chip selected" type="button" onclick="toggleChip(this)">一汤</button>
+                <button class="chip selected" type="button" onclick="toggleChip(this)">主食</button>
+                <button class="chip selected" type="button" onclick="toggleChip(this)">微辣</button>
+                <button class="chip" type="button" onclick="toggleChip(this)">30 分钟</button>
+              </div>
+            </div>
+
+            <div class="prompt-box">
+              <div class="prompt-title">
+                <strong><i data-lucide="map-pin" width="17" height="17"></i>附近吃</strong>
+                <small>只搜索周边餐厅</small>
+              </div>
+              <div class="input-row">
+                <input id="restaurant-home-input" type="text" value="5km 内，微辣，人均 50 内，适合晚饭" aria-label="输入附近餐厅需求" />
+                <button class="primary-button" type="button" aria-label="搜索附近餐厅" onclick="runRestaurantSearchFromHome()">
+                  <i data-lucide="search"></i>
+                </button>
+              </div>
+              <div class="chips" aria-label="附近吃快捷标签">
+                <button class="chip selected" type="button" onclick="toggleChip(this)">5km</button>
+                <button class="chip selected" type="button" onclick="toggleChip(this)">营业中</button>
+                <button class="chip" type="button" onclick="toggleChip(this)">川湘菜</button>
+                <button class="chip" type="button" onclick="toggleChip(this)">牛肉面</button>
+                <button class="chip" type="button" onclick="toggleChip(this)">人均 50 内</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="choice-grid">
+            <button class="choice-card" type="button" onclick="goRecipeFirst()">
+              <span class="choice-icon"><i data-lucide="chef-hat"></i></span>
+              <strong>生成晚餐组合</strong>
+              <span>示例：两荤一素、一汤、主食</span>
+            </button>
+            <button class="choice-card" type="button" onclick="goRestaurantList()">
+              <span class="choice-icon"><i data-lucide="map-pin"></i></span>
+              <strong>查看附近餐厅</strong>
+              <span>只按位置和餐厅条件搜索</span>
+            </button>
+          </div>
+
+          <div class="section-head">
+            <h3>今日灵感</h3>
+            <button type="button" onclick="runRecipeRecommend()">换一组</button>
+          </div>
+          <div class="today-list" id="today-list"></div>
+        </section>
+
+        <section id="recommend-screen" class="screen" data-tab="home">
+          <div class="screen-title">
+            <button class="icon-button" type="button" aria-label="返回" onclick="goBack()">
+              <i data-lucide="chevron-left"></i>
+            </button>
+            <h2>在家做点啥</h2>
+            <button class="icon-button" type="button" aria-label="重新推荐" onclick="rerollResults()">
+              <i data-lucide="refresh-cw"></i>
+            </button>
+            <p id="recommend-subtitle">已根据你的做饭需求拆解人数、菜数、口味和主食</p>
+          </div>
+
+          <div class="ai-summary">
+            <div class="summary-line">
+              <i data-lucide="sparkles" width="18" height="18"></i>
+              <span id="ai-summary-text">你想吃微辣、少油、30 分钟内能完成的晚餐。</span>
+            </div>
+            <div class="tag-row" id="ai-tags"></div>
+          </div>
+
+          <div class="segmented" role="tablist" aria-label="做饭推荐类型">
+            <button id="seg-meal" class="active" type="button" onclick="setRecommendMode('meal')">组合菜单</button>
+            <button id="seg-single" type="button" onclick="setRecommendMode('single')">单道菜</button>
+          </div>
+          <div class="result-list" id="recommend-list"></div>
+        </section>
+
+        <section id="restaurants-screen" class="screen" data-tab="nearby">
+          <div class="screen-title">
+            <button class="icon-button" type="button" aria-label="返回" onclick="goBack()">
+              <i data-lucide="chevron-left"></i>
+            </button>
+            <h2>附近吃点啥</h2>
+            <button class="icon-button" type="button" aria-label="定位失败演示" onclick="showModal('定位暂时不可用', '可以手动输入城市、商圈或地标继续搜索。原型中会保留上一次位置。', '手动输入')">
+              <i data-lucide="crosshair"></i>
+            </button>
+            <p>5km 内按口味、距离和营业状态排序</p>
+          </div>
+
+          <div class="prompt-box">
+            <div class="prompt-title">
+              <strong><i data-lucide="search" width="17" height="17"></i>餐厅搜索</strong>
+              <small>独立于自己做模块</small>
+            </div>
+            <div class="input-row">
+              <input id="restaurant-need-input" type="text" value="5km 内，微辣，人均 50 内，适合晚饭" aria-label="输入附近餐厅搜索需求" />
+              <button class="primary-button" type="button" aria-label="搜索附近餐厅" onclick="runRestaurantSearch()">
+                <i data-lucide="search"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="location-card">
+            <div class="location-row">
+              <div class="location-name">
+                <i data-lucide="map-pin" width="17" height="17"></i>
+                <span>当前位置：人民广场附近</span>
+              </div>
+              <button class="pill-button" type="button" onclick="showModal('切换位置', '正式版本会支持 GPS 定位、手动输入地址和使用上次位置。', '知道了')">切换</button>
+            </div>
+            <div class="chips">
+              <button class="chip selected" type="button" onclick="toggleChip(this); renderRestaurants()">5km</button>
+              <button class="chip selected" type="button" onclick="toggleChip(this); renderRestaurants()">营业中</button>
+              <button class="chip" type="button" onclick="toggleChip(this); renderRestaurants()">牛肉面</button>
+              <button class="chip" type="button" onclick="toggleChip(this); renderRestaurants()">川湘菜</button>
+              <button class="chip" type="button" onclick="toggleChip(this); renderRestaurants()">人均 50 内</button>
+            </div>
+            <p id="restaurant-query-summary" class="meta">已按“5km 内，微辣，人均 50 内，适合晚饭”搜索餐厅</p>
+          </div>
+
+          <div class="result-list" id="restaurant-list"></div>
+          <button class="ghost-button full" type="button" onclick="showEmptyState()">演示无结果状态</button>
+        </section>
+
+        <section id="meal-detail-screen" class="screen" data-tab="home"></section>
+        <section id="recipe-detail-screen" class="screen" data-tab="home"></section>
+        <section id="restaurant-detail-screen" class="screen" data-tab="nearby"></section>
+
+        <section id="saved-screen" class="screen" data-tab="saved">
+          <div class="screen-title">
+            <button class="icon-button" type="button" aria-label="返回首页" onclick="showTab('home')">
+              <i data-lucide="chevron-left"></i>
+            </button>
+            <h2>收藏</h2>
+            <button class="icon-button" type="button" aria-label="清空演示" onclick="showModal('收藏会保存在本地', '首版计划用本地存储保存菜谱和餐厅收藏，关闭应用后仍可查看。', '知道了')">
+              <i data-lucide="info"></i>
+            </button>
+            <p>喜欢的菜谱和餐厅都在这里</p>
+          </div>
+          <div class="list-tabs">
+            <button id="saved-tab-all" class="chip selected" type="button" onclick="setSavedFilter('all')">全部</button>
+            <button id="saved-tab-recipes" class="chip" type="button" onclick="setSavedFilter('recipes')">自己做</button>
+            <button id="saved-tab-restaurants" class="chip" type="button" onclick="setSavedFilter('restaurants')">餐厅</button>
+          </div>
+          <div class="result-list" id="saved-list"></div>
+        </section>
+
+        <section id="history-screen" class="screen" data-tab="history">
+          <div class="screen-title">
+            <button class="icon-button" type="button" aria-label="返回首页" onclick="showTab('home')">
+              <i data-lucide="chevron-left"></i>
+            </button>
+            <h2>历史</h2>
+            <button class="icon-button" type="button" aria-label="AI 失败状态演示" onclick="showModal('AI 暂时不可用', '正式版本会切换到基础规则推荐，并保留重试入口。', '重试')">
+              <i data-lucide="triangle-alert"></i>
+            </button>
+            <p>最近看过的菜和店，帮你更快下决定</p>
+          </div>
+          <div class="result-list" id="history-list"></div>
+        </section>
+
+        <section id="settings-screen" class="screen" data-tab="settings">
+          <div class="screen-title">
+            <button class="icon-button" type="button" aria-label="返回首页" onclick="showTab('home')">
+              <i data-lucide="chevron-left"></i>
+            </button>
+            <h2>偏好设置</h2>
+            <button class="icon-button" type="button" aria-label="保存设置" onclick="toast('偏好已保存到本地演示数据')">
+              <i data-lucide="save"></i>
+            </button>
+            <p>首版保存在本机，不需要账号</p>
+          </div>
+
+          <div class="pref-card">
+            <div class="pref-row">
+              <span>常用口味</span>
+              <div class="tag-row">
+                <span class="tag">微辣</span>
+                <span class="tag">清淡</span>
+              </div>
+            </div>
+            <div class="chips">
+              <button class="chip selected" type="button" onclick="toggleChip(this)">微辣</button>
+              <button class="chip" type="button" onclick="toggleChip(this)">麻辣</button>
+              <button class="chip selected" type="button" onclick="toggleChip(this)">清淡</button>
+              <button class="chip" type="button" onclick="toggleChip(this)">酸甜</button>
+            </div>
+          </div>
+
+          <div class="pref-card">
+            <div class="pref-row">
+              <span>忌口</span>
+              <div class="tag-row">
+                <span class="tag">香菜</span>
+                <span class="tag">海鲜</span>
+              </div>
+            </div>
+            <div class="chips">
+              <button class="chip selected" type="button" onclick="toggleChip(this)">香菜</button>
+              <button class="chip selected" type="button" onclick="toggleChip(this)">海鲜</button>
+              <button class="chip" type="button" onclick="toggleChip(this)">牛羊肉</button>
+              <button class="chip" type="button" onclick="toggleChip(this)">葱蒜</button>
+            </div>
+          </div>
+
+          <div class="pref-card">
+            <div class="pref-row">
+              <span>默认搜索半径</span>
+              <strong>5km</strong>
+            </div>
+            <div class="chips">
+              <button class="chip" type="button" onclick="toggleRadius(this)">1km</button>
+              <button class="chip" type="button" onclick="toggleRadius(this)">3km</button>
+              <button class="chip selected" type="button" onclick="toggleRadius(this)">5km</button>
+              <button class="chip" type="button" onclick="toggleRadius(this)">10km</button>
+            </div>
+          </div>
+
+          <div class="pref-card">
+            <div class="pref-row">
+              <span>优先推荐快手菜</span>
+              <button class="switch" type="button" aria-label="优先推荐快手菜" onclick="toast('已切换快手菜偏好')"></button>
+            </div>
+            <div class="pref-row">
+              <span>只看营业中餐厅</span>
+              <button class="switch" type="button" aria-label="只看营业中餐厅" onclick="toast('已切换营业状态偏好')"></button>
+            </div>
+          </div>
+        </section>
+
+        <nav class="bottom-nav" aria-label="底部导航">
+          <button id="nav-home" class="nav-button active" type="button" onclick="showTab('home')">
+            <i data-lucide="home"></i>
+            <span>首页</span>
+          </button>
+          <button id="nav-nearby" class="nav-button" type="button" onclick="goRestaurantList()">
+            <i data-lucide="map"></i>
+            <span>附近</span>
+          </button>
+          <button id="nav-saved" class="nav-button" type="button" onclick="showTab('saved')">
+            <i data-lucide="heart"></i>
+            <span>收藏</span>
+          </button>
+          <button id="nav-settings" class="nav-button" type="button" onclick="showTab('settings')">
+            <i data-lucide="sliders-horizontal"></i>
+            <span>设置</span>
+          </button>
+        </nav>
+      </div>
+
+      <div id="toast" class="toast" role="status" aria-live="polite">
+        <i data-lucide="check-circle" width="17" height="17"></i>
+        <span id="toast-text"></span>
+      </div>
+
+      <div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-sheet">
+          <h3 id="modal-title">提示</h3>
+          <p id="modal-text">说明文字</p>
+          <button id="modal-action" class="primary-button full" type="button" onclick="closeModal()">知道了</button>
+          <button class="ghost-button full" type="button" onclick="closeModal()">关闭</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const recipes = [
+      {
+        id: "recipe_beef_tomato",
+        name: "番茄肥牛汤",
+        cuisine: "家常菜",
+        taste: ["酸甜", "微辣", "暖胃"],
+        tags: ["25 分钟", "新手友好", "少油"],
+        difficulty: "简单",
+        cookTime: "25 分钟",
+        servings: "2 人份",
+        cover: "https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?auto=format&fit=crop&w=900&q=80",
+        reason: "酸甜开胃，肥牛熟得快，适合想吃热乎但不想大动干戈的晚餐。",
+        ingredients: [
+          ["肥牛卷", "200g"],
+          ["番茄", "2 个"],
+          ["金针菇", "1 把"],
+          ["蒜末", "适量"],
+          ["番茄酱", "1 勺"],
+          ["盐", "适量"]
+        ],
+        steps: [
+          "番茄去皮切块，金针菇洗净，肥牛提前焯水去浮沫。",
+          "锅中少油炒香蒜末，加入番茄块和番茄酱，炒到出沙。",
+          "加入热水煮开，放入金针菇煮 3 分钟，再放肥牛。",
+          "加盐调味，喜欢微辣可以加少量小米辣，出锅前撒葱花。"
+        ],
+        tips: "肥牛先焯水，汤会更清爽；番茄炒出沙后再加水，味道更浓。"
+      },
+      {
+        id: "recipe_chicken_pepper",
+        name: "青椒鸡丁",
+        cuisine: "川湘家常",
+        taste: ["鲜香", "微辣"],
+        tags: ["20 分钟", "下饭", "高蛋白"],
+        difficulty: "简单",
+        cookTime: "20 分钟",
+        servings: "2 人份",
+        cover: "https://images.unsplash.com/photo-1563379926898-05f4575a45d8?auto=format&fit=crop&w=900&q=80",
+        reason: "鸡肉和青椒都容易熟，微辣下饭，油量可控，适合工作日晚餐。",
+        ingredients: [
+          ["鸡胸肉", "250g"],
+          ["青椒", "2 个"],
+          ["生抽", "1 勺"],
+          ["淀粉", "半勺"],
+          ["蒜片", "适量"],
+          ["黑胡椒", "少许"]
+        ],
+        steps: [
+          "鸡胸肉切丁，加生抽、黑胡椒和淀粉抓匀腌 8 分钟。",
+          "青椒切块，锅中少油先炒鸡丁至变色。",
+          "加入蒜片和青椒，大火翻炒 2 分钟。",
+          "补少量盐和生抽，翻匀后立即出锅，保持青椒爽脆。"
+        ],
+        tips: "鸡丁不要炒太久，表面变白后再回锅翻炒，口感更嫩。"
+      },
+      {
+        id: "recipe_sour_spicy_potato",
+        name: "酸辣土豆丝",
+        cuisine: "家常菜",
+        taste: ["酸辣", "爽脆"],
+        tags: ["15 分钟", "低成本", "快手菜"],
+        difficulty: "入门",
+        cookTime: "15 分钟",
+        servings: "2 人份",
+        cover: "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=900&q=80",
+        reason: "材料简单、出菜很快，酸辣味明显，特别适合没想法时兜底。",
+        ingredients: [
+          ["土豆", "2 个"],
+          ["干辣椒", "3 个"],
+          ["白醋", "1 勺"],
+          ["蒜末", "适量"],
+          ["盐", "适量"],
+          ["青椒", "半个"]
+        ],
+        steps: [
+          "土豆切丝后用清水冲洗两遍，去掉表面淀粉。",
+          "热锅少油炒香蒜末和干辣椒。",
+          "下土豆丝大火快炒，沿锅边淋白醋。",
+          "加盐调味，土豆丝断生后立刻出锅。"
+        ],
+        tips: "土豆丝冲水和大火快炒是爽脆的关键。"
+      }
+    ];
+
+    const mealPlans = [
+      {
+        id: "meal_spicy_combo",
+        title: "微辣两荤一素一汤晚餐",
+        structure: "两荤一素 · 一汤 · 主食",
+        cookTime: "约 45 分钟",
+        servings: "2-3 人份",
+        cover: "https://images.unsplash.com/photo-1559847844-5315695dadae?auto=format&fit=crop&w=900&q=80",
+        tags: ["两荤一素", "一汤", "主食", "微辣"],
+        reason: "按“两荤一素、一汤、主食、微辣”拆解，荤菜负责下饭和蛋白质，素菜负责清爽解腻，汤和米饭补完整晚餐结构。",
+        dishes: [
+          { course: "荤菜", name: "青椒鸡丁", note: "微辣高蛋白，20 分钟", badge: "meat", recipeId: "recipe_chicken_pepper" },
+          { course: "荤菜", name: "蒜香小炒肉", note: "下饭肉菜，少油快炒", badge: "meat" },
+          { course: "素菜", name: "酸辣土豆丝", note: "爽脆开胃，15 分钟", badge: "veg", recipeId: "recipe_sour_spicy_potato" },
+          { course: "汤", name: "番茄豆腐汤", note: "清爽收尾，少油暖胃", badge: "soup" },
+          { course: "主食", name: "米饭 / 杂粮饭", note: "提前煮，配微辣菜更稳", badge: "staple" }
+        ],
+        shoppingList: ["鸡胸肉 250g", "五花肉 150g", "土豆 2 个", "青椒 3 个", "番茄 2 个", "豆腐 1 盒", "米饭 2-3 人份", "蒜、生抽、白醋、小米辣"],
+        timeline: [
+          "先淘米煮饭，同时切配鸡肉、土豆丝、青椒和番茄。",
+          "土豆丝泡水，鸡丁腌制 8 分钟，汤锅先煮番茄豆腐汤底。",
+          "先炒酸辣土豆丝，再炒青椒鸡丁和小炒肉，最后给汤调味。",
+          "所有热菜集中在最后 20 分钟出锅，口感更好。"
+        ]
+      },
+      {
+        id: "meal_light_combo",
+        title: "清淡快手一人晚餐",
+        structure: "一荤一素 · 一汤 · 主食",
+        cookTime: "约 30 分钟",
+        servings: "1-2 人份",
+        cover: "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=900&q=80",
+        tags: ["清淡", "快手", "一人食", "少油"],
+        reason: "适合不想吃太油时使用，保留蛋白质、蔬菜、热汤和主食，整体负担更轻。",
+        dishes: [
+          { course: "荤菜", name: "番茄肥牛汤", note: "汤菜合一，25 分钟", badge: "meat", recipeId: "recipe_beef_tomato" },
+          { course: "素菜", name: "清炒时蔬", note: "少油补蔬菜", badge: "veg" },
+          { course: "汤", name: "紫菜蛋花汤", note: "5 分钟补汤水", badge: "soup" },
+          { course: "主食", name: "米饭 / 面条", note: "按饱腹感选择", badge: "staple" }
+        ],
+        shoppingList: ["肥牛卷 200g", "番茄 2 个", "青菜 1 把", "鸡蛋 2 个", "紫菜 少许", "米饭或挂面", "盐、生抽、蒜"],
+        timeline: [
+          "先准备主食，再处理番茄、青菜和鸡蛋。",
+          "番茄肥牛汤先煮，等待时清炒时蔬。",
+          "最后 5 分钟冲紫菜蛋花汤，全部一起上桌。"
+        ]
+      }
+    ];
+
+    const restaurants = [
+      {
+        id: "restaurant_noodle",
+        name: "巷口牛肉面",
+        category: "面馆",
+        tags: ["牛肉面", "单人友好", "快餐"],
+        address: "人民大道 88 号 B1 层",
+        distance: "850m",
+        rating: "4.6",
+        price: "人均 ¥28",
+        open: "营业中 · 10:00-22:00",
+        phone: "021-0000 8828",
+        cover: "https://images.unsplash.com/photo-1552611052-33e04de081de?auto=format&fit=crop&w=900&q=80",
+        reason: "距离近、出餐快，主打牛肉面和小菜，适合一个人快速解决晚饭。"
+      },
+      {
+        id: "restaurant_hunan",
+        name: "小灶湘味馆",
+        category: "湘菜",
+        tags: ["微辣", "下饭菜", "朋友聚餐"],
+        address: "南京西路 126 号 2 楼",
+        distance: "1.7km",
+        rating: "4.7",
+        price: "人均 ¥56",
+        open: "营业中 · 11:00-21:30",
+        phone: "021-0000 5620",
+        cover: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=900&q=80",
+        reason: "口味更接近微辣下饭，评分高，适合想吃热菜但不想走太远。"
+      },
+      {
+        id: "restaurant_canton",
+        name: "明炉烧味茶餐厅",
+        category: "粤菜",
+        tags: ["清淡", "烧味", "汤粉"],
+        address: "福州路 39 号",
+        distance: "2.4km",
+        rating: "4.5",
+        price: "人均 ¥48",
+        open: "营业中 · 09:30-22:00",
+        phone: "021-0000 3948",
+        cover: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=900&q=80",
+        reason: "清淡选择多，烧味饭和汤粉都适合晚餐，适合不想吃太油的时候。"
+      }
+    ];
+
+    const state = {
+      screen: "home-screen",
+      stack: ["home-screen"],
+      recommendMode: "meal",
+      savedFilter: "all",
+      savedMealPlans: new Set(["meal_spicy_combo"]),
+      savedRecipes: new Set(["recipe_beef_tomato"]),
+      savedRestaurants: new Set(["restaurant_noodle"]),
+      history: [
+        { type: "meal", id: "meal_spicy_combo" },
+        { type: "recipe", id: "recipe_chicken_pepper" },
+        { type: "restaurant", id: "restaurant_hunan" }
+      ]
+    };
+
+    function iconRefresh() {
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+    }
+
+    function showScreen(screenId, push = true) {
+      document.querySelectorAll(".screen").forEach((screen) => screen.classList.remove("active"));
+      document.getElementById(screenId).classList.add("active");
+      state.screen = screenId;
+      if (push && state.stack[state.stack.length - 1] !== screenId) {
+        state.stack.push(screenId);
+      }
+      updateNav();
+      iconRefresh();
+    }
+
+    function showTab(tab) {
+      const target = {
+        home: "home-screen",
+        saved: "saved-screen",
+        history: "history-screen",
+        settings: "settings-screen"
+      }[tab] || "home-screen";
+      if (target === "saved-screen") renderSaved();
+      if (target === "history-screen") renderHistory();
+      showScreen(target);
+    }
+
+    function updateNav() {
+      const activeTab = document.getElementById(state.screen).dataset.tab || "home";
+      document.querySelectorAll(".nav-button").forEach((button) => button.classList.remove("active"));
+      const id = activeTab === "history" ? "nav-home" : `nav-${activeTab}`;
+      const active = document.getElementById(id);
+      if (active) active.classList.add("active");
+    }
+
+    function goBack() {
+      if (state.stack.length > 1) {
+        state.stack.pop();
+        const previous = state.stack[state.stack.length - 1];
+        showScreen(previous, false);
+      } else {
+        showScreen("home-screen", false);
+      }
+    }
+
+    function toggleChip(button) {
+      button.classList.toggle("selected");
+    }
+
+    function toggleRadius(button) {
+      button.parentElement.querySelectorAll(".chip").forEach((chip) => chip.classList.remove("selected"));
+      button.classList.add("selected");
+      toast(`默认半径已切换为 ${button.textContent}`);
+    }
+
+    function runRecipeRecommend() {
+      const value = document.getElementById("recipe-need-input").value.trim() || "两荤一素、一汤、主食、微辣";
+      document.getElementById("recommend-subtitle").textContent = `已解析做饭需求：“${value}”`;
+      document.getElementById("ai-summary-text").textContent = inferCookSummary(value);
+      renderAiTags(value);
+      setRecommendMode("meal");
+      showScreen("recommend-screen");
+      toast("已生成一套晚餐组合");
+    }
+
+    function runAiRecommend() {
+      runRecipeRecommend();
+    }
+
+    function inferCookSummary(text) {
+      if (text.includes("两荤") || text.includes("一素") || text.includes("一汤") || text.includes("主食")) {
+        return "你需要一套包含荤菜、素菜、汤和主食的晚餐组合，口味偏微辣。";
+      }
+      if (text.includes("清淡")) {
+        return "你想要清淡少油、结构完整、操作简单的在家晚餐。";
+      }
+      return "你想吃微辣、少油、适合在家完成的晚餐。";
+    }
+
+    function renderAiTags(text) {
+      const tags = ["组合菜单", "微辣", "晚餐"];
+      if (text.includes("两荤")) tags.splice(1, 0, "两荤一素");
+      if (text.includes("一汤")) tags.push("一汤");
+      if (text.includes("主食")) tags.push("主食");
+      if (text.includes("牛肉")) tags.push("牛肉");
+      if (text.includes("清淡")) tags.splice(0, tags.length, "清淡", "少油", "快手", "晚餐");
+      document.getElementById("ai-tags").innerHTML = tags.map((tag) => `<span class="tag">${tag}</span>`).join("");
+    }
+
+    function setRecommendMode(mode) {
+      state.recommendMode = mode;
+      document.getElementById("seg-meal").classList.toggle("active", mode === "meal");
+      document.getElementById("seg-single").classList.toggle("active", mode === "single");
+      renderRecommendations();
+    }
+
+    function rerollResults() {
+      state.recommendMode = state.recommendMode === "meal" ? "single" : "meal";
+      setRecommendMode(state.recommendMode);
+      toast(state.recommendMode === "meal" ? "已切回组合菜单" : "已切到单道菜推荐");
+    }
+
+    function goRecipeFirst() {
+      document.getElementById("recipe-need-input").value = "两荤一素、一汤、主食、微辣";
+      runRecipeRecommend();
+    }
+
+    function runRestaurantSearchFromHome() {
+      const value = document.getElementById("restaurant-home-input").value.trim() || "5km 内，微辣，人均 50 内，适合晚饭";
+      document.getElementById("restaurant-need-input").value = value;
+      runRestaurantSearch();
+    }
+
+    function runRestaurantSearch() {
+      const value = document.getElementById("restaurant-need-input").value.trim() || "5km 内，微辣，人均 50 内，适合晚饭";
+      document.getElementById("restaurant-query-summary").textContent = `已按“${value}”搜索餐厅`;
+      renderRestaurants();
+      showScreen("restaurants-screen");
+      toast("已按附近吃需求搜索餐厅");
+    }
+
+    function goRestaurantList() {
+      renderRestaurants();
+      showScreen("restaurants-screen");
+    }
+
+    function renderToday() {
+      const todayItems = [mealPlans[0], restaurants[0]];
+      document.getElementById("today-list").innerHTML = todayItems.map((item) => {
+        const isMeal = Boolean(item.dishes);
+        const isRecipe = Boolean(item.cuisine);
+        const action = isMeal ? `openMealPlan('${item.id}')` : isRecipe ? `openRecipe('${item.id}')` : `openRestaurant('${item.id}')`;
+        const meta = isMeal ? `${item.structure} · ${item.cookTime}` : isRecipe ? `${item.cookTime} · ${item.difficulty}` : `${item.distance} · ${item.price}`;
+        return `
+          <button class="mini-card" type="button" onclick="${action}">
+            <span class="mini-photo"><img src="${item.cover}" alt="${item.title || item.name}" /></span>
+            <span class="mini-copy">
+              <strong>${item.title || item.name}</strong>
+              <span>${meta}</span>
+              <span class="tag-row">${item.tags.slice(0, 2).map((tag) => `<span class="tag ${isMeal || isRecipe ? "" : "green"}">${tag}</span>`).join("")}</span>
+            </span>
+          </button>
+        `;
+      }).join("");
+      iconRefresh();
+    }
+
+    function renderRecommendations() {
+      if (state.recommendMode === "meal") {
+        document.getElementById("recommend-list").innerHTML = mealPlans.map(renderMealPlanCard).join("");
+        iconRefresh();
+        return;
+      }
+      const list = recipes;
+      document.getElementById("recommend-list").innerHTML = list.map((item) => {
+        const saved = state.savedRecipes.has(item.id);
+        return `
+          <button class="result-card" type="button" onclick="openRecipe('${item.id}')">
+            <span class="photo-thumb"><img src="${item.cover}" alt="${item.name}" /></span>
+            <span class="result-copy">
+              <strong>${item.name}</strong>
+              <span class="meta">${item.cuisine} · ${item.cookTime} · ${item.difficulty}</span>
+              <span class="tag-row">${item.tags.slice(0, 3).map((tag) => `<span class="tag">${tag}</span>`).join("")}</span>
+              <span class="reason">${item.reason}</span>
+              <span class="card-actions">
+                <span class="pill-button">看做法</span>
+                <span class="ghost-button" onclick="event.stopPropagation(); toggleRecipeSave('${item.id}')">
+                  <i data-lucide="${saved ? "heart" : "heart-plus"}" width="15" height="15"></i>${saved ? "已收藏" : "收藏"}
+                </span>
+              </span>
+            </span>
+          </button>
+        `;
+      }).join("");
+      iconRefresh();
+    }
+
+    function renderMealPlanCard(plan) {
+      const saved = state.savedMealPlans.has(plan.id);
+      return `
+        <button class="meal-card" type="button" onclick="openMealPlan('${plan.id}')">
+          <span class="meal-card-top">
+            <span class="photo-thumb"><img src="${plan.cover}" alt="${plan.title}" /></span>
+            <span class="result-copy">
+              <strong>${plan.title}</strong>
+              <span class="meta">${plan.structure} · ${plan.cookTime} · ${plan.servings}</span>
+              <span class="tag-row">${plan.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</span>
+              <span class="reason">${plan.reason}</span>
+            </span>
+          </span>
+          <span class="meal-dish-list">
+            ${plan.dishes.map((dish) => `
+              <span class="dish-line">
+                <span class="course-badge ${dish.badge === "veg" ? "veg" : dish.badge === "soup" ? "soup" : dish.badge === "staple" ? "staple" : ""}">${dish.course}</span>
+                <span><strong>${dish.name}</strong> · ${dish.note}</span>
+              </span>
+            `).join("")}
+          </span>
+          <span class="card-actions">
+            <span class="pill-button">查看整套菜单</span>
+            <span class="ghost-button" onclick="event.stopPropagation(); toggleMealSave('${plan.id}')">
+              <i data-lucide="${saved ? "heart" : "heart-plus"}" width="15" height="15"></i>${saved ? "已收藏" : "收藏"}
+            </span>
+          </span>
+        </button>
+      `;
+    }
+
+    function renderRestaurants() {
+      document.getElementById("restaurant-list").innerHTML = restaurants.map((item) => {
+        const saved = state.savedRestaurants.has(item.id);
+        return `
+          <button class="result-card" type="button" onclick="openRestaurant('${item.id}')">
+            <span class="photo-thumb"><img src="${item.cover}" alt="${item.name}" /></span>
+            <span class="result-copy">
+              <strong>${item.name}</strong>
+              <span class="meta">${item.category} · ${item.distance} · ${item.rating} 分</span>
+              <span class="tag-row">${item.tags.slice(0, 3).map((tag) => `<span class="tag green">${tag}</span>`).join("")}</span>
+              <span class="reason">${item.reason}</span>
+              <span class="card-actions">
+                <span class="pill-button">详情</span>
+                <span class="ghost-button" onclick="event.stopPropagation(); toggleRestaurantSave('${item.id}')">
+                  <i data-lucide="${saved ? "heart" : "heart-plus"}" width="15" height="15"></i>${saved ? "已收藏" : "收藏"}
+                </span>
+              </span>
+            </span>
+          </button>
+        `;
+      }).join("");
+      iconRefresh();
+    }
+
+    function openMealPlan(id) {
+      const plan = mealPlans.find((item) => item.id === id);
+      if (!plan) return;
+      addHistory("meal", id);
+      const saved = state.savedMealPlans.has(id);
+      document.getElementById("meal-detail-screen").innerHTML = `
+        <div class="screen-title">
+          <button class="icon-button" type="button" aria-label="返回" onclick="goBack()"><i data-lucide="chevron-left"></i></button>
+          <h2>组合菜单</h2>
+          <button class="icon-button" type="button" aria-label="收藏组合菜单" onclick="toggleMealSave('${plan.id}'); openMealPlan('${plan.id}')">
+            <i data-lucide="${saved ? "heart" : "heart-plus"}"></i>
+          </button>
+          <p>${plan.structure} · ${plan.cookTime} · ${plan.servings}</p>
+        </div>
+        <div class="detail-hero">
+          <img src="${plan.cover}" alt="${plan.title}" />
+          <div class="detail-hero-copy">
+            <h2>${plan.title}</h2>
+            <div class="tag-row">${plan.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
+          </div>
+        </div>
+        <div class="detail-block">
+          <h3>为什么这样搭</h3>
+          <p class="meta">${plan.reason}</p>
+        </div>
+        <div class="detail-block">
+          <h3>菜品结构</h3>
+          <div class="meal-dish-list">
+            ${plan.dishes.map((dish) => `
+              <div class="dish-line">
+                <span class="course-badge ${dish.badge === "veg" ? "veg" : dish.badge === "soup" ? "soup" : dish.badge === "staple" ? "staple" : ""}">${dish.course}</span>
+                <span><strong>${dish.name}</strong> · ${dish.note}</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+        <div class="detail-block">
+          <h3>统一采购清单</h3>
+          <div class="shopping-grid">
+            ${plan.shoppingList.map((item) => `<span class="ingredient"><b>${item}</b></span>`).join("")}
+          </div>
+        </div>
+        <div class="detail-block">
+          <h3>建议烹饪顺序</h3>
+          <div class="step-list">
+            ${plan.timeline.map((step, index) => `
+              <div class="step">
+                <span class="step-number">${index + 1}</span>
+                <span>${step}</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+        <button class="primary-button full" type="button" onclick="toggleMealSave('${plan.id}'); openMealPlan('${plan.id}')">
+          <i data-lucide="${saved ? "heart" : "heart-plus"}"></i>${saved ? "已收藏整套菜单" : "收藏整套菜单"}
+        </button>
+        <button class="ghost-button full" type="button" onclick="openRecipe('${plan.dishes.find((dish) => dish.recipeId)?.recipeId || "recipe_chicken_pepper"}')">
+          <i data-lucide="book-open"></i>查看其中一道详细做法
+        </button>
+      `;
+      showScreen("meal-detail-screen");
+    }
+
+    function openRecipe(id) {
+      const recipe = recipes.find((item) => item.id === id);
+      if (!recipe) return;
+      addHistory("recipe", id);
+      const saved = state.savedRecipes.has(id);
+      document.getElementById("recipe-detail-screen").innerHTML = `
+        <div class="screen-title">
+          <button class="icon-button" type="button" aria-label="返回" onclick="goBack()"><i data-lucide="chevron-left"></i></button>
+          <h2>菜谱详情</h2>
+          <button class="icon-button" type="button" aria-label="收藏菜谱" onclick="toggleRecipeSave('${recipe.id}'); openRecipe('${recipe.id}')">
+            <i data-lucide="${saved ? "heart" : "heart-plus"}"></i>
+          </button>
+          <p>${recipe.cuisine} · ${recipe.cookTime} · ${recipe.difficulty}</p>
+        </div>
+        <div class="detail-hero">
+          <img src="${recipe.cover}" alt="${recipe.name}" />
+          <div class="detail-hero-copy">
+            <h2>${recipe.name}</h2>
+            <div class="tag-row">${recipe.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
+          </div>
+        </div>
+        <div class="detail-block">
+          <h3>为什么推荐</h3>
+          <p class="meta">${recipe.reason}</p>
+        </div>
+        <div class="detail-block">
+          <h3>食材和调料</h3>
+          <div class="ingredient-grid">
+            ${recipe.ingredients.map(([name, amount]) => `<span class="ingredient"><b>${name}</b><span>${amount}</span></span>`).join("")}
+          </div>
+        </div>
+        <div class="detail-block">
+          <h3>步骤</h3>
+          <div class="step-list">
+            ${recipe.steps.map((step, index) => `
+              <div class="step">
+                <span class="step-number">${index + 1}</span>
+                <span>${step}</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+        <div class="detail-block">
+          <h3>小技巧</h3>
+          <p class="meta">${recipe.tips}</p>
+        </div>
+        <button class="primary-button full" type="button" onclick="toggleRecipeSave('${recipe.id}'); openRecipe('${recipe.id}')">
+          <i data-lucide="${saved ? "heart" : "heart-plus"}"></i>${saved ? "已收藏" : "收藏菜谱"}
+        </button>
+      `;
+      showScreen("recipe-detail-screen");
+    }
+
+    function openRestaurant(id) {
+      const restaurant = restaurants.find((item) => item.id === id);
+      if (!restaurant) return;
+      addHistory("restaurant", id);
+      const saved = state.savedRestaurants.has(id);
+      document.getElementById("restaurant-detail-screen").innerHTML = `
+        <div class="screen-title">
+          <button class="icon-button" type="button" aria-label="返回" onclick="goBack()"><i data-lucide="chevron-left"></i></button>
+          <h2>餐厅详情</h2>
+          <button class="icon-button" type="button" aria-label="收藏餐厅" onclick="toggleRestaurantSave('${restaurant.id}'); openRestaurant('${restaurant.id}')">
+            <i data-lucide="${saved ? "heart" : "heart-plus"}"></i>
+          </button>
+          <p>${restaurant.category} · ${restaurant.distance} · ${restaurant.open}</p>
+        </div>
+        <div class="restaurant-hero">
+          <img src="${restaurant.cover}" alt="${restaurant.name}" />
+          <div class="detail-hero-copy">
+            <h2>${restaurant.name}</h2>
+            <div class="tag-row">${restaurant.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
+          </div>
+        </div>
+        <div class="detail-block">
+          <h3>关键信息</h3>
+          <div class="restaurant-info-grid">
+            <span class="info-tile"><span>距离</span><strong>${restaurant.distance}</strong></span>
+            <span class="info-tile"><span>评分</span><strong>${restaurant.rating} 分</strong></span>
+            <span class="info-tile"><span>预算</span><strong>${restaurant.price}</strong></span>
+            <span class="info-tile"><span>状态</span><strong>营业中</strong></span>
+          </div>
+        </div>
+        <div class="detail-block">
+          <h3>AI 推荐理由</h3>
+          <p class="meta">${restaurant.reason}</p>
+        </div>
+        <div class="detail-block">
+          <h3>地址和电话</h3>
+          <p class="meta">${restaurant.address}</p>
+          <p class="meta">${restaurant.phone}</p>
+        </div>
+        <button class="primary-button full" type="button" onclick="showModal('打开导航', '正式版本会跳转到系统地图或已安装地图 App，并传入该餐厅经纬度。', '开始导航')">
+          <i data-lucide="navigation"></i>导航去这里
+        </button>
+        <button class="ghost-button full" type="button" onclick="toggleRestaurantSave('${restaurant.id}'); openRestaurant('${restaurant.id}')">
+          <i data-lucide="${saved ? "heart" : "heart-plus"}"></i>${saved ? "已收藏" : "收藏餐厅"}
+        </button>
+      `;
+      showScreen("restaurant-detail-screen");
+    }
+
+    function toggleMealSave(id) {
+      if (state.savedMealPlans.has(id)) {
+        state.savedMealPlans.delete(id);
+        toast("已取消收藏整套菜单");
+      } else {
+        state.savedMealPlans.add(id);
+        toast("整套菜单已收藏");
+      }
+      renderRecommendations();
+      renderSaved();
+    }
+
+    function toggleRecipeSave(id) {
+      if (state.savedRecipes.has(id)) {
+        state.savedRecipes.delete(id);
+        toast("已取消收藏菜谱");
+      } else {
+        state.savedRecipes.add(id);
+        toast("菜谱已收藏");
+      }
+      renderRecommendations();
+      renderSaved();
+    }
+
+    function toggleRestaurantSave(id) {
+      if (state.savedRestaurants.has(id)) {
+        state.savedRestaurants.delete(id);
+        toast("已取消收藏餐厅");
+      } else {
+        state.savedRestaurants.add(id);
+        toast("餐厅已收藏");
+      }
+      renderRecommendations();
+      renderRestaurants();
+      renderSaved();
+    }
+
+    function addHistory(type, id) {
+      state.history = state.history.filter((entry) => !(entry.type === type && entry.id === id));
+      state.history.unshift({ type, id });
+      state.history = state.history.slice(0, 8);
+    }
+
+    function setSavedFilter(filter) {
+      state.savedFilter = filter;
+      document.querySelectorAll("#saved-screen .list-tabs .chip").forEach((button) => button.classList.remove("selected"));
+      document.getElementById(`saved-tab-${filter}`).classList.add("selected");
+      renderSaved();
+    }
+
+    function renderSaved() {
+      const entries = [
+        ...Array.from(state.savedMealPlans).map((id) => ({ type: "meal", item: mealPlans.find((plan) => plan.id === id) })),
+        ...Array.from(state.savedRecipes).map((id) => ({ type: "recipe", item: recipes.find((recipe) => recipe.id === id) })),
+        ...Array.from(state.savedRestaurants).map((id) => ({ type: "restaurant", item: restaurants.find((restaurant) => restaurant.id === id) }))
+      ].filter((entry) => entry.item);
+      const filtered = entries.filter((entry) => {
+        if (state.savedFilter === "recipes") return entry.type === "recipe" || entry.type === "meal";
+        if (state.savedFilter === "restaurants") return entry.type === "restaurant";
+        return true;
+      });
+      const container = document.getElementById("saved-list");
+      if (!filtered.length) {
+        container.innerHTML = `
+          <div class="empty-card">
+            <i data-lucide="heart" width="28" height="28"></i>
+            <strong>还没有收藏</strong>
+            <span>看到喜欢的菜谱或餐厅，点收藏就会出现在这里。</span>
+          </div>
+        `;
+      } else {
+        container.innerHTML = filtered.map(({ type, item }) => savedCard(type, item)).join("");
+      }
+      iconRefresh();
+    }
+
+    function savedCard(type, item) {
+      const isRecipe = type === "recipe";
+      const isMeal = type === "meal";
+      const action = isMeal ? `openMealPlan('${item.id}')` : isRecipe ? `openRecipe('${item.id}')` : `openRestaurant('${item.id}')`;
+      const title = item.title || item.name;
+      const meta = isMeal ? `${item.structure} · ${item.cookTime}` : isRecipe ? `${item.cookTime} · ${item.difficulty}` : `${item.distance} · ${item.price}`;
+      return `
+        <button class="mini-card" type="button" onclick="${action}">
+          <span class="mini-photo"><img src="${item.cover}" alt="${title}" /></span>
+          <span class="mini-copy">
+            <strong>${title}</strong>
+            <span>${meta}</span>
+            <span class="tag-row">${item.tags.slice(0, 2).map((tag) => `<span class="tag ${isRecipe || isMeal ? "" : "green"}">${tag}</span>`).join("")}</span>
+          </span>
+        </button>
+      `;
+    }
+
+    function renderHistory() {
+      const container = document.getElementById("history-list");
+      if (!state.history.length) {
+        container.innerHTML = `
+          <div class="empty-card">
+            <i data-lucide="clock" width="28" height="28"></i>
+            <strong>暂无历史</strong>
+            <span>浏览菜谱和餐厅后会自动保存最近记录。</span>
+          </div>
+        `;
+      } else {
+        container.innerHTML = state.history.map((entry) => {
+          const item = entry.type === "meal"
+            ? mealPlans.find((plan) => plan.id === entry.id)
+            : entry.type === "recipe"
+              ? recipes.find((recipe) => recipe.id === entry.id)
+              : restaurants.find((restaurant) => restaurant.id === entry.id);
+          return item ? savedCard(entry.type, item) : "";
+        }).join("");
+      }
+      iconRefresh();
+    }
+
+    function showEmptyState() {
+      document.getElementById("restaurant-list").innerHTML = `
+        <div class="empty-card">
+          <i data-lucide="search-x" width="30" height="30"></i>
+          <strong>附近暂未找到符合条件的餐厅</strong>
+          <span>可以扩大范围到 10km，或去掉“营业中”“人均 50 内”等限制。</span>
+          <button class="primary-button full" type="button" onclick="renderRestaurants()">放宽条件</button>
+        </div>
+      `;
+      iconRefresh();
+    }
+
+    function showModal(title, text, actionText = "知道了") {
+      document.getElementById("modal-title").textContent = title;
+      document.getElementById("modal-text").textContent = text;
+      document.getElementById("modal-action").textContent = actionText;
+      document.getElementById("modal").classList.add("show");
+      iconRefresh();
+    }
+
+    function closeModal() {
+      document.getElementById("modal").classList.remove("show");
+      toast("已返回原型演示");
+    }
+
+    let toastTimer;
+    function toast(message) {
+      const toastEl = document.getElementById("toast");
+      document.getElementById("toast-text").textContent = message;
+      toastEl.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1800);
+      iconRefresh();
+    }
+
+    renderToday();
+    renderRecommendations();
+    renderRestaurants();
+    renderSaved();
+    renderHistory();
+    iconRefresh();
+  </script>
+</body>
+</html>

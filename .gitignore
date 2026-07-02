@@ -1,0 +1,33 @@
+# Gradle / Kotlin build output
+.gradle/
+.gradle-user-home/
+.gradle-user-home-apk/
+.kotlin/
+build/
+**/build/
+
+# Android Studio / local machine config
+local.properties
+*.iml
+.idea/
+captures/
+
+# Local secrets. Keep .env.example tracked.
+.env
+server/.env
+
+# Local backend runtime data
+server/data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+server-run*.log
+
+# Large local recipe corpus files
+food/recipe_corpus_full.json
+xiachufang_recipe_corpus_full.zip
+
+# Codex / local assistant workspace state
+.agents/
+.superpowers/
