@@ -31,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -104,6 +106,8 @@ fun FoodSearchPanel(
     chips: List<String> = emptyList(),
     onChipClick: (String) -> Unit = {}
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     FoodCard {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(color = ChiDianColors.SurfaceWarm, shape = RoundedCornerShape(999.dp)) {
@@ -142,7 +146,11 @@ fun FoodSearchPanel(
             }
         }
         Button(
-            onClick = onSubmit,
+            onClick = {
+                keyboardController?.hide()
+                focusManager.clearFocus()
+                onSubmit()
+            },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.Tomato),
             shape = RoundedCornerShape(8.dp)

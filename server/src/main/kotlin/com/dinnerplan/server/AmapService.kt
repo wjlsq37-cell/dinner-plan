@@ -38,7 +38,7 @@ class AmapService(
             return AmapRestaurantSearchResult(
                 restaurants = emptyList(),
                 locationUsed = location,
-                fallbackReason = "高德地图 Key 未配置，暂时无法查询真实餐厅。"
+                fallbackReason = "相关服务还没配置好，请到设置中检查后再试。"
             )
         }
 
@@ -46,7 +46,7 @@ class AmapService(
             ?: return AmapRestaurantSearchResult(
                 restaurants = emptyList(),
                 locationUsed = location,
-                fallbackReason = "没有可用位置，请手动输入城市、商圈或地标。"
+                fallbackReason = "暂时无法获取当前位置，你也可以手动输入地点。"
             )
 
         val spec = RestaurantSearchSpec.fromQuery(query)
@@ -95,7 +95,7 @@ class AmapService(
                     restaurants = fallbackRestaurants,
                     locationUsed = resolvedLocation,
                     fallbackReason = if (fallbackRestaurants.isEmpty()) {
-                        "附近未找到日料相关店铺，也暂未找到附近餐厅。"
+                        "暂时没找到合适的结果，可以换个关键词或放宽条件再试。"
                     } else {
                         spec.genericFallbackReason
                     }
@@ -105,15 +105,61 @@ class AmapService(
             AmapRestaurantSearchResult(
                 restaurants = emptyList(),
                 locationUsed = resolvedLocation,
-                fallbackReason = "附近暂未找到符合条件的真实餐厅。"
+                fallbackReason = "暂时没找到合适的结果，可以换个关键词或放宽条件再试。"
             )
         }.getOrElse { error ->
             AmapRestaurantSearchResult(
                 restaurants = emptyList(),
                 locationUsed = resolvedLocation,
-                fallbackReason = "高德地图请求失败：${error.message ?: "未知错误"}"
+                fallbackReason = "附近餐厅数据暂时加载失败，请稍后再试。"
             )
         }
+    }
+
+    suspend fun searchRestaurantCandidates(
+        plan: RestaurantKeywordPlan,
+        location: LocationDto?,
+        radiusMeters: Int
+    ): AmapRestaurantCandidateSearchResult {
+        if (!config.amapConfigured) {
+            return AmapRestaurantCandidateSearchResult(
+                candidates = emptyList(),
+                locationUsed = location,
+                fallbackReason = "相关服务还没配置好，请到设置中检查后再试。"
+            )
+        }
+
+        val resolvedLocation = resolveLocation(location)
+            ?: return AmapRestaurantCandidateSearchResult(
+                candidates = emptyList(),
+                locationUsed = location,
+                fallbackReason = "暂时无法获取当前位置，你也可以手动输入地点。"
+            )
+
+        val fallbackReasons = mutableListOf<String>()
+        val search = AmapMultiKeywordSearch { keyword ->
+            val fetched = fetchAroundPois(
+                keywords = listOf(keyword),
+                location = resolvedLocation,
+                radiusMeters = radiusMeters
+            )
+            fetched.fallbackReason?.let { fallbackReasons += it }
+            fetched.pois.mapNotNull { it.toRestaurantCandidate() }
+        }
+        val candidates = runCatching { search.search(plan) }.getOrElse { error ->
+            fallbackReasons += "附近餐厅数据暂时加载失败，请稍后再试。"
+            emptyList()
+        }
+
+        return AmapRestaurantCandidateSearchResult(
+            candidates = candidates,
+            locationUsed = resolvedLocation,
+            fallbackReason = when {
+                candidates.isNotEmpty() -> null
+                fallbackReasons.isNotEmpty() -> fallbackReasons.first()
+                else -> "暂时没找到合适的结果，可以换个关键词或放宽条件再试。"
+            }
+        )
     }
 
     private suspend fun fetchAroundPois(
@@ -239,7 +285,41 @@ private fun JsonObject.toRestaurantDto(query: String): RestaurantDto? {
         open = "营业状态以地图为准",
         phone = string("tel").ifBlank { "暂无电话" },
         coverUrl = photoUrl.ifBlank { "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=900&q=80" },
-        reason = "来自高德 POI：距离 ${distance.ifBlank { "未知" }}，类型匹配 ${type.substringBefore(";").ifBlank { "餐饮" }}，请以地图实时营业信息为准。",
+        reason = "这家店和你的搜索更接近，距离也比较合适。",
+        latitude = lat,
+        longitude = lng
+    )
+}
+
+private fun JsonObject.toRestaurantCandidate(): RestaurantCandidate? {
+    val locationParts = string("location").split(",")
+    val lng = locationParts.getOrNull(0)?.toDoubleOrNull()
+    val lat = locationParts.getOrNull(1)?.toDoubleOrNull()
+    val bizExt = this["biz_ext"] as? JsonObject
+    val photos = this["photos"] as? JsonArray
+    val firstPhoto = photos?.firstOrNull() as? JsonObject
+    val name = string("name")
+    if (name.isBlank()) return null
+    val type = string("type").ifBlank { "餐饮" }
+    val distance = string("distance").toIntOrNull()?.let { "${it}m" }.orEmpty()
+    val cost = bizExt?.string("cost").orEmpty()
+    val tags = buildList {
+        add(type.substringBefore(";").ifBlank { "餐饮" })
+        type.split(";").drop(1).mapNotNullTo(this) { it.takeIf(String::isNotBlank) }
+    }.distinct()
+    return RestaurantCandidate(
+        id = "amap_${string("id").ifBlank { stableCandidateId(name, string("address")) }}",
+        name = name,
+        type = type,
+        address = string("address"),
+        distance = distance,
+        rating = bizExt?.string("rating").orEmpty().ifBlank { "暂无" },
+        cost = cost,
+        businessArea = string("business_area"),
+        tags = tags,
+        description = string("tag"),
+        photoTitles = photos?.mapNotNull { (it as? JsonObject)?.string("title")?.takeIf(String::isNotBlank) }.orEmpty(),
+        photoUrl = firstPhoto?.string("url").orEmpty(),
         latitude = lat,
         longitude = lng
     )
@@ -259,7 +339,17 @@ data class AmapRestaurantSearchResult(
     val fallbackReason: String?
 )
 
+data class AmapRestaurantCandidateSearchResult(
+    val candidates: List<RestaurantCandidate>,
+    val locationUsed: LocationDto?,
+    val fallbackReason: String?
+)
+
 private data class AmapPoiFetchResult(
     val pois: List<JsonObject>,
     val fallbackReason: String?
 )
+
+private fun stableCandidateId(name: String, address: String): String {
+    return "${name}|${address}".hashCode().toString().replace("-", "n")
+}

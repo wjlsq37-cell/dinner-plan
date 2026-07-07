@@ -5,6 +5,8 @@ import com.dinnerplan.shared.RecipeDto
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.request.get
+import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -43,6 +45,8 @@ internal data class WanweiRecipeItem(
     val smallImg: String = "",
     val yl: List<WanweiIngredient> = emptyList(),
     val steps: List<WanweiStep> = emptyList(),
+    val difficulty: String = "",
+    val duration: String = "",
     val tip: String = ""
 )
 
@@ -80,18 +84,50 @@ internal class WanweiRecipeApiClient(
         query: String,
         page: Int = 1
     ): WanweiRecipeSearchResult {
+        return when (settings.selectedRecipeApiSource) {
+            RecipeApiSource.Wanwei -> searchWanweiRecipes(settings, query, page)
+            RecipeApiSource.Mxnzp -> searchMxnzpRecipes(settings, query, page)
+            RecipeApiSource.Custom -> searchCustomRecipes(settings, query, page)
+        }
+    }
+
+    suspend fun loadMxnzpRecipeDetail(settings: DeveloperSettings, recipe: RecipeDto): RecipeDto? {
+        if (!isMxnzpRecipe(recipe)) return null
+        val appId = settings.recipeApiAppId
+        val appSecret = settings.recipeApiSecret
+        if (appId.isBlank() || appSecret.isBlank()) return null
+        return try {
+            withTimeout(settings.maxWaitMillis) {
+                requestMxnzpRecipeDetail(mxnzpRawId(recipe.id), appId, appSecret)
+                    .mergeMxnzpDetailInto(recipe)
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            logInternalIssue("mxnzp recipe detail load failed", error.message, error)
+            null
+        }
+    }
+
+    private suspend fun searchWanweiRecipes(
+        settings: DeveloperSettings,
+        query: String,
+        page: Int
+    ): WanweiRecipeSearchResult {
         val appKey = settings.wanweiRecipeAppKey.trim()
         if (appKey.isBlank()) {
+            logInternalIssue("Wanwei recipe configuration missing", "appKey is blank")
             return WanweiRecipeSearchResult(
                 recipes = emptyList(),
                 totalMatches = 0,
-                fallbackReason = "开发者模式已开启，但万维易源 AppKey 未填写。"
+                fallbackReason = friendlyStatusMessage("万维易源 AppKey 未填写", UserMessageContext.Config)
             )
         }
 
         return try {
             withTimeout(settings.maxWaitMillis) {
-                val keywordRecipes = requestRecipes(
+                val keywordRecipes = requestWanweiRecipes(
+                    baseUrl = settings.effectiveRecipeApiUrl,
                     path = "1164-4",
                     appKey = appKey,
                     form = mapOf(
@@ -107,7 +143,8 @@ internal class WanweiRecipeApiClient(
 
                 val category = inferWanweiCategory(query)
                 val categoryRecipes = if ((category != null || keywordRecipes.isEmpty()) && keywordRecipes.size < settings.safePageSize) {
-                    requestRecipes(
+                    requestWanweiRecipes(
+                        baseUrl = settings.effectiveRecipeApiUrl,
                         path = "1164-1",
                         appKey = appKey,
                         form = mapOf(
@@ -131,26 +168,158 @@ internal class WanweiRecipeApiClient(
                 WanweiRecipeSearchResult(
                     recipes = recipes,
                     totalMatches = recipes.size,
-                    fallbackReason = if (recipes.isEmpty()) "万维易源暂未找到“$query”相关菜谱。" else null
+                    fallbackReason = if (recipes.isEmpty()) friendlyStatusMessage("暂未找到", UserMessageContext.SearchEmpty) else null
                 )
             }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
+            logInternalIssue("Wanwei recipe search failed", error.message, error)
             WanweiRecipeSearchResult(
                 recipes = emptyList(),
                 totalMatches = 0,
-                fallbackReason = wanweiErrorMessage(error)
+                fallbackReason = recipeApiErrorMessage("万维易源", error)
             )
         }
     }
 
-    private suspend fun requestRecipes(
+    private suspend fun searchMxnzpRecipes(
+        settings: DeveloperSettings,
+        query: String,
+        page: Int
+    ): WanweiRecipeSearchResult {
+        if (settings.recipeApiAppId.isBlank() || settings.recipeApiSecret.isBlank()) {
+            logInternalIssue("mxnzp recipe configuration missing", "app_id/app_secret is blank")
+            return WanweiRecipeSearchResult(
+                recipes = emptyList(),
+                totalMatches = 0,
+                fallbackReason = friendlyStatusMessage("mxnzp app_id 或 app_secret 未填写", UserMessageContext.Config)
+            )
+        }
+        val appId = settings.recipeApiAppId
+        val appSecret = settings.recipeApiSecret
+        return try {
+            withTimeout(settings.maxWaitMillis) {
+                val response = client.get(settings.effectiveRecipeApiUrl) {
+                    parameter("keyword", query)
+                    parameter("page", page)
+                    parameter("app_id", appId.trim())
+                    parameter("app_secret", appSecret.trim())
+                }
+                val text = response.bodyAsText()
+                if (!response.status.isSuccess()) {
+                    throw IllegalStateException("mxnzp HTTP ${response.status.value}：${text.take(120)}")
+                }
+                val recipes = parseMxnzpResponse(text)
+                    .let { WanweiRecipeMapper.rankRecipes(it, query) }
+                    .take(settings.safePageSize)
+                WanweiRecipeSearchResult(
+                    recipes = recipes,
+                    totalMatches = recipes.size,
+                    fallbackReason = if (recipes.isEmpty()) friendlyStatusMessage("暂未找到", UserMessageContext.SearchEmpty) else null
+                )
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            logInternalIssue("mxnzp recipe search failed", error.message, error)
+            WanweiRecipeSearchResult(
+                recipes = emptyList(),
+                totalMatches = 0,
+                fallbackReason = recipeApiErrorMessage("mxnzp", error)
+            )
+        }
+    }
+
+    private suspend fun searchCustomRecipes(
+        settings: DeveloperSettings,
+        query: String,
+        page: Int
+    ): WanweiRecipeSearchResult {
+        val endpoint = settings.effectiveRecipeApiUrl
+        if (endpoint.isBlank()) {
+            logInternalIssue("Custom recipe API configuration missing", "recipe API URL is blank")
+            return WanweiRecipeSearchResult(
+                recipes = emptyList(),
+                totalMatches = 0,
+                fallbackReason = friendlyStatusMessage("自定义菜谱 API 地址未填写", UserMessageContext.Config)
+            )
+        }
+        return searchGenericGetRecipes(
+            sourceName = "自定义菜谱 API",
+            idPrefix = "custom_recipe",
+            endpoint = endpoint,
+            query = query,
+            page = page,
+            pageSize = settings.safePageSize,
+            appId = settings.recipeApiAppId,
+            appSecret = settings.recipeApiSecret,
+            maxWaitMillis = settings.maxWaitMillis
+        )
+    }
+
+    private suspend fun searchGenericGetRecipes(
+        sourceName: String,
+        idPrefix: String,
+        endpoint: String,
+        query: String,
+        page: Int,
+        pageSize: Int,
+        appId: String,
+        appSecret: String,
+        maxWaitMillis: Long
+    ): WanweiRecipeSearchResult {
+        return try {
+            withTimeout(maxWaitMillis) {
+                val response = client.get(endpoint) {
+                    parameter("keyword", query)
+                    parameter("keyWord", query)
+                    parameter("word", query)
+                    parameter("name", query)
+                    parameter("page", page)
+                    parameter("num", pageSize)
+                    parameter("size", pageSize)
+                    parameter("limit", pageSize)
+                    if (appId.isNotBlank()) parameter("app_id", appId.trim())
+                    if (appSecret.isNotBlank()) parameter("app_secret", appSecret.trim())
+                }
+                val text = response.bodyAsText()
+                if (!response.status.isSuccess()) {
+                    throw IllegalStateException("$sourceName HTTP ${response.status.value}：${text.take(120)}")
+                }
+                val recipes = parseGenericRecipeResponse(
+                    text = text,
+                    sourceName = sourceName,
+                    idPrefix = idPrefix,
+                    defaultTag = sourceName
+                )
+                    .let { WanweiRecipeMapper.rankRecipes(it, query) }
+                    .take(pageSize)
+                WanweiRecipeSearchResult(
+                    recipes = recipes,
+                    totalMatches = recipes.size,
+                    fallbackReason = if (recipes.isEmpty()) friendlyStatusMessage("暂未找到", UserMessageContext.SearchEmpty) else null
+                )
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            logInternalIssue("$sourceName recipe search failed", error.message, error)
+            WanweiRecipeSearchResult(
+                recipes = emptyList(),
+                totalMatches = 0,
+                fallbackReason = recipeApiErrorMessage(sourceName, error)
+            )
+        }
+    }
+
+    private suspend fun requestWanweiRecipes(
+        baseUrl: String,
         path: String,
         appKey: String,
         form: Map<String, String>
     ): List<RecipeDto> {
-        val response = client.post("$WANWEI_RECIPE_BASE_URL/$path?appKey=${urlEncode(appKey)}") {
+        val response = client.post("${baseUrl.trimEnd('/')}/$path?appKey=${urlEncode(appKey)}") {
             contentType(ContentType.Application.FormUrlEncoded)
             setBody(encodeForm(form.filterValues { it.isNotBlank() }))
         }
@@ -179,6 +348,74 @@ internal class WanweiRecipeApiClient(
             .distinctBy { it.id.ifBlank { it.cpName } }
     }
 
+    private suspend fun requestMxnzpRecipeDetail(id: String, appId: String, appSecret: String): RecipeDto {
+        val response = client.get(MXNZP_RECIPE_DETAIL_URL) {
+            parameter("id", id)
+            parameter("app_id", appId.trim())
+            parameter("app_secret", appSecret.trim())
+        }
+        val text = response.bodyAsText()
+        if (!response.status.isSuccess()) {
+            throw IllegalStateException("mxnzp detail HTTP ${response.status.value}：${text.take(120)}")
+        }
+        return parseMxnzpDetailResponse(text)
+    }
+
+    internal fun parseMxnzpResponse(text: String): List<RecipeDto> {
+        return parseGenericRecipeResponse(
+            text = text,
+            sourceName = "mxnzp",
+            idPrefix = "mxnzp",
+            defaultTag = "mxnzp"
+        )
+    }
+
+    internal fun parseMxnzpDetailResponse(text: String): RecipeDto {
+        val root = json.parseToJsonElement(text).jsonObject
+        val code = root.int("code") ?: root.int("status")
+        val success = code == null || code == 0 || code == 1 || code == 200
+        if (!success) {
+            throw IllegalStateException("mxnzp 详情接口返回异常（$code）：${root.string("msg").ifBlank { root.string("message") }}")
+        }
+        val body = root.obj("data") ?: root.obj("result") ?: root
+        val item = toWanweiRecipeItem(body) ?: throw IllegalStateException("mxnzp 详情缺少菜谱名称")
+        return WanweiRecipeMapper.toRecipeDto(
+            item = item,
+            sourceName = "mxnzp",
+            idPrefix = "mxnzp",
+            defaultTag = "mxnzp"
+        )
+    }
+
+    private fun parseGenericRecipeResponse(
+        text: String,
+        sourceName: String,
+        idPrefix: String,
+        defaultTag: String
+    ): List<RecipeDto> {
+        val root = json.parseToJsonElement(text).jsonObject
+        val code = root.int("code") ?: root.int("status") ?: root.int("showapi_res_code")
+        val success = code == null || code == 0 || code == 1 || code == 200
+        if (!success) {
+            throw IllegalStateException("$sourceName 接口返回异常（$code）：${root.string("msg").ifBlank { root.string("message") }}")
+        }
+        val body = root.obj("data")
+            ?: root.obj("result")
+            ?: root.obj("showapi_res_body")
+            ?: root
+        return recipeObjects(body)
+            .mapNotNull(::toWanweiRecipeItem)
+            .distinctBy { it.id.ifBlank { it.cpName } }
+            .map { item ->
+                WanweiRecipeMapper.toRecipeDto(
+                    item = item,
+                    sourceName = sourceName,
+                    idPrefix = idPrefix,
+                    defaultTag = defaultTag
+                )
+            }
+    }
+
     private fun recipeObjects(root: JsonObject): List<JsonObject> {
         val direct = listOf(
             "contentlist",
@@ -191,7 +428,11 @@ internal class WanweiRecipeApiClient(
             "recipeList",
             "items",
             "rows",
-            "records"
+            "records",
+            "menu",
+            "menus",
+            "cookbooks",
+            "cookbookList"
         )
             .flatMap { key -> root.array(key).mapNotNull { it as? JsonObject } }
         val pageBean = (root.obj("pagebean") ?: root.obj("pageBean"))?.let(::recipeObjects).orEmpty()
@@ -216,37 +457,53 @@ internal class WanweiRecipeApiClient(
             .ifBlank { obj.string("name") }
             .ifBlank { obj.string("title") }
             .ifBlank { obj.string("menuName") }
+            .ifBlank { obj.string("recipeName") }
+            .ifBlank { obj.string("foodName") }
         if (name.isBlank()) return null
         return WanweiRecipeItem(
             id = obj.string("id")
                 .ifBlank { obj.string("_id") }
                 .ifBlank { obj.string("cpId") }
-                .ifBlank { obj.string("recipeId") },
+                .ifBlank { obj.string("recipeId") }
+                .ifBlank { obj.string("menuId") },
             cpName = name,
             des = obj.string("des")
                 .ifBlank { obj.string("description") }
                 .ifBlank { obj.string("desc") }
-                .ifBlank { obj.string("summary") },
-            type = obj.string("type"),
-            typeV1 = obj.string("type_v1").ifBlank { obj.string("typeV1") },
+                .ifBlank { obj.string("summary") }
+                .ifBlank { obj.string("intro") },
+            type = obj.string("type").ifBlank { obj.string("category") },
+            typeV1 = obj.string("type_v1").ifBlank { obj.string("typeV1") }.ifBlank { obj.string("categoryName") },
             typeV2 = obj.string("type_v2").ifBlank { obj.string("typeV2") },
             typeV3 = obj.string("type_v3").ifBlank { obj.string("typeV3") },
             largeImg = obj.string("largeImg")
                 .ifBlank { obj.string("large_img") }
                 .ifBlank { obj.string("imgUrl") }
-                .ifBlank { obj.string("pic") },
+                .ifBlank { obj.string("pic") }
+                .ifBlank { obj.string("img") }
+                .ifBlank { obj.string("image") }
+                .ifBlank { obj.string("cover") }
+                .ifBlank { obj.string("coverUrl") },
             smallImg = obj.string("smallImg")
                 .ifBlank { obj.string("small_img") }
-                .ifBlank { obj.string("thumbnail") },
+                .ifBlank { obj.string("thumbnail") }
+                .ifBlank { obj.string("smallPic") },
             yl = obj.array("yl").mapNotNull(::toWanweiIngredient)
                 .ifEmpty { obj.array("recipeIngredient").mapNotNull(::toWanweiIngredient) }
                 .ifEmpty { obj.array("ingredients").mapNotNull(::toWanweiIngredient) }
-                .ifEmpty { obj.array("materials").mapNotNull(::toWanweiIngredient) },
+                .ifEmpty { obj.array("materials").mapNotNull(::toWanweiIngredient) }
+                .ifEmpty { obj.array("material").mapNotNull(::toWanweiIngredient) }
+                .ifEmpty { obj.array("ingredient").mapNotNull(::toWanweiIngredient) },
             steps = obj.array("steps").mapNotNull(::toWanweiStep)
                 .ifEmpty { obj.array("recipeInstructions").mapNotNull(::toWanweiStep) }
+                .ifEmpty { obj.array("instruction").mapNotNull(::toWanweiStep) }
                 .ifEmpty { obj.array("method").mapNotNull(::toWanweiStep) }
-                .ifEmpty { obj.array("process").mapNotNull(::toWanweiStep) },
-            tip = obj.string("tip").ifBlank { obj.string("tips") }
+                .ifEmpty { obj.array("process").mapNotNull(::toWanweiStep) }
+                .ifEmpty { obj.array("practice").mapNotNull(::toWanweiStep) }
+                .ifEmpty { obj.array("cookingSteps").mapNotNull(::toWanweiStep) },
+            difficulty = obj.string("difficulty"),
+            duration = obj.string("duration").ifBlank { obj.string("cookTime") }.ifBlank { obj.string("time") },
+            tip = obj.string("tip").ifBlank { obj.string("tips") }.ifBlank { obj.string("notice") }
         )
     }
 
@@ -258,6 +515,7 @@ internal class WanweiRecipeApiClient(
                 .ifBlank { obj.string("name") }
                 .ifBlank { obj.string("materialName") }
                 .ifBlank { obj.string("food") }
+                .ifBlank { obj.string("ingredient") }
             if (name.isBlank()) return null
             return WanweiIngredient(
                 name,
@@ -265,6 +523,7 @@ internal class WanweiRecipeApiClient(
                     .ifBlank { obj.string("yl_unit") }
                     .ifBlank { obj.string("amount") }
                     .ifBlank { obj.string("unit") }
+                    .ifBlank { obj.string("weight") }
             )
         }
         val text = element.asText()
@@ -275,21 +534,28 @@ internal class WanweiRecipeApiClient(
         val obj = element as? JsonObject
         if (obj != null) {
             val content = obj.string("content")
+                .ifBlank { obj.string("text") }
                 .ifBlank { obj.string("step") }
+                .ifBlank { obj.string("title") }
                 .ifBlank { obj.string("desc") }
                 .ifBlank { obj.string("description") }
-                .ifBlank { obj.string("text") }
+                .ifBlank { obj.string("detail") }
             if (content.isBlank()) return null
             return WanweiStep(
                 orderNum = obj.string("orderNum")
                     .ifBlank { obj.string("order_num") }
                     .ifBlank { obj.string("order") }
-                    .ifBlank { obj.string("stepNum") },
+                    .ifBlank { obj.string("stepNum") }
+                    .ifBlank { obj.string("stepIndex") }
+                    .ifBlank { obj.string("step") }
+                    .ifBlank { obj.string("no") },
                 content = content,
                 imgUrl = obj.string("imgUrl")
                     .ifBlank { obj.string("img_url") }
+                    .ifBlank { obj.string("url") }
                     .ifBlank { obj.string("img") }
                     .ifBlank { obj.string("pic") }
+                    .ifBlank { obj.string("image") }
             )
         }
         val text = element.asText()
@@ -297,42 +563,79 @@ internal class WanweiRecipeApiClient(
     }
 }
 
+private fun mxnzpRawId(id: String): String {
+    return id.removePrefix("mxnzp_")
+}
+
+private fun isMxnzpRecipe(recipe: RecipeDto): Boolean {
+    return recipe.source.equals("mxnzp", ignoreCase = true) || recipe.id.startsWith("mxnzp_")
+}
+
+private fun RecipeDto.mergeMxnzpDetailInto(searchRecipe: RecipeDto): RecipeDto {
+    return searchRecipe.copy(
+        cuisine = cuisine.ifBlank { searchRecipe.cuisine },
+        taste = taste.ifEmpty { searchRecipe.taste },
+        tags = tags.ifEmpty { searchRecipe.tags },
+        difficulty = difficulty.ifBlank { searchRecipe.difficulty },
+        cookTime = cookTime.ifBlank { searchRecipe.cookTime },
+        servings = servings.ifBlank { searchRecipe.servings },
+        coverUrl = searchRecipe.coverUrl.ifBlank { coverUrl },
+        reason = searchRecipe.reason.ifBlank { reason },
+        ingredients = ingredients.ifEmpty { searchRecipe.ingredients },
+        steps = steps.ifEmpty { searchRecipe.steps },
+        tips = tips.ifBlank { searchRecipe.tips },
+        ratingStars = ratingStars ?: searchRecipe.ratingStars,
+        stepImageUrls = stepImageUrls.ifEmpty { searchRecipe.stepImageUrls }
+    )
+}
+
 internal object WanweiRecipeMapper {
-    fun toRecipeDto(item: WanweiRecipeItem): RecipeDto {
+    fun toRecipeDto(
+        item: WanweiRecipeItem,
+        sourceName: String = "万维易源",
+        idPrefix: String = "showapi",
+        defaultTag: String = sourceName
+    ): RecipeDto {
         val tags = listOf(item.type, item.typeV1, item.typeV2, item.typeV3)
             .map { it.trim() }
             .filter { it.isNotBlank() && it != "Unknown" }
             .distinct()
-        val sortedSteps = item.steps
-            .sortedBy { it.orderNum.toIntOrNull() ?: Int.MAX_VALUE }
-            .map { it.content.trim() }
-            .filter { it.isNotBlank() }
+        val sortedStepItems = item.steps
+            .sortedBy { stepOrder(it.orderNum) }
+            .filter { it.content.isNotBlank() }
+        val sortedSteps = sortedStepItems.map { it.content.trim() }
         val cover = item.largeImg.ifBlank {
             item.smallImg.ifBlank {
                 item.steps.firstOrNull { it.imgUrl.isNotBlank() }?.imgUrl.orEmpty()
             }
         }
+        val stepImageUrls = if (sortedStepItems.any { it.imgUrl.isNotBlank() }) {
+            sortedStepItems.map { it.imgUrl.trim() }
+        } else {
+            emptyList()
+        }
         val name = item.cpName.trim()
         return RecipeDto(
-            id = "showapi_${item.id.ifBlank { stableRecipeId(name) }}",
+            id = "${idPrefix}_${item.id.ifBlank { stableRecipeId(name) }}",
             name = name,
-            cuisine = tags.firstOrNull().orEmpty().ifBlank { "万维菜谱" },
+            cuisine = tags.firstOrNull().orEmpty().ifBlank { "$sourceName 菜谱" },
             taste = tags.take(3).ifEmpty { listOf("家常") },
-            tags = tags.ifEmpty { listOf("万维易源") },
-            difficulty = inferDifficulty(sortedSteps.size),
-            cookTime = inferCookTime(sortedSteps.size),
+            tags = tags.ifEmpty { listOf(defaultTag) },
+            difficulty = item.difficulty.ifBlank { inferDifficulty(sortedSteps.size) },
+            cookTime = item.duration.ifBlank { inferCookTime(sortedSteps.size) },
             servings = "按需",
             coverUrl = cover,
-            reason = item.des.ifBlank { "来自万维易源菜谱库，按你的搜索词匹配。" },
+            reason = item.des.ifBlank { "来自${sourceName}菜谱库，按你的搜索词匹配。" },
             ingredients = item.yl
                 .mapNotNull { ingredient ->
                     val namePart = ingredient.ylName.trim()
                     if (namePart.isBlank()) null else IngredientDto(namePart, ingredient.ylUnit.trim())
                 },
-            steps = sortedSteps,
+            steps = sortedSteps.ifEmpty { listOf("根据食材准备并按家常做法烹饪。") },
             tips = item.tip.ifBlank { "可按个人口味调整调味和火候。" },
             ratingStars = qualityRating(item),
-            source = "万维易源"
+            source = sourceName,
+            stepImageUrls = stepImageUrls
         )
     }
 
@@ -391,6 +694,10 @@ internal object WanweiRecipeMapper {
         else -> "约50分钟"
     }
 
+    private fun stepOrder(value: String): Int {
+        return Regex("\\d+").find(value)?.value?.toIntOrNull() ?: Int.MAX_VALUE
+    }
+
     private fun stableRecipeId(name: String): String = name.hashCode().toString().replace("-", "n")
 }
 
@@ -422,15 +729,9 @@ private fun showApiError(code: Int, message: String): String {
     }
 }
 
-private fun wanweiErrorMessage(error: Throwable): String {
+private fun recipeApiErrorMessage(sourceName: String, error: Throwable): String {
     val message = error.message.orEmpty()
-    return when {
-        message.contains("AppKey") || message.contains("未订购") || message.contains("余额") ||
-            message.contains("次数") || message.contains("频繁") -> message
-        message.contains("timeout", ignoreCase = true) || error is kotlinx.coroutines.TimeoutCancellationException ->
-            "万维易源菜谱 API 请求超时，请调大最大等待时长或稍后重试。"
-        else -> "万维易源菜谱 API 请求失败：${message.ifBlank { "未知错误" }}"
-    }
+    return friendlyStatusMessage(message.ifBlank { "$sourceName 菜谱 API 请求失败" }, UserMessageContext.Recipe)
 }
 
 private fun JsonObject.string(key: String): String = this[key].asText()

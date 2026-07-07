@@ -24,5 +24,6 @@ internal fun isLikelyAmapSearchCoordinate(latitude: Double, longitude: Double): 
 }
 
 internal fun unsupportedAmapLocationMessage(latitude: Double, longitude: Double): String {
-    return "当前定位 ${coordinateDisplayLabel(latitude, longitude)} 不在高德大陆 POI 常规覆盖范围内。模拟器请在 Extended Controls > Location 中设置中国大陆坐标，例如杭州 30.256000, 120.205000 或上海 31.230400, 121.473700。"
+    logInternalIssue("Unsupported Amap search coordinate", coordinateDisplayLabel(latitude, longitude))
+    return "暂时无法获取当前位置，你也可以手动输入地点。"
 }

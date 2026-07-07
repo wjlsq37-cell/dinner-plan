@@ -5,6 +5,8 @@
 .kotlin/
 build/
 **/build/
+vercel-api/dist/
+vercel-api/node_modules/
 
 # Android Studio / local machine config
 local.properties

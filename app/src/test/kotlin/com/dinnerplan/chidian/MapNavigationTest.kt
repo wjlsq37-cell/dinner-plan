@@ -1,12 +1,12 @@
-package com.dinnerplan.chidian
+﻿package com.dinnerplan.chidian
 
 import kotlin.test.Test
-import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class MapNavigationTest {
     @Test
-    fun coordinateTargetPrefersAmapRouteAndGeoFallback() {
+    fun coordinateTargetUsesAmapAppRouteWithoutBrowserFallback() {
         val targets = buildNavigationTargets(
             RestaurantNavigationRequest(
                 name = "隐泉寿司",
@@ -16,16 +16,15 @@ class MapNavigationTest {
             )
         )
 
-        assertEquals(
-            "androidamap://route/plan/?sourceApplication=吃点啥&dlat=30.256&dlon=120.205&dname=%E9%9A%90%E6%B3%89%E5%AF%BF%E5%8F%B8&dev=0&t=0",
-            targets.amapUri
-        )
-        assertEquals("geo:30.256,120.205?q=30.256,120.205(%E9%9A%90%E6%B3%89%E5%AF%BF%E5%8F%B8)", targets.geoUri)
-        assertTrue(targets.browserUri.contains("120.205,30.256"))
+        val amapUri = requireNotNull(targets.amapUri)
+        assertTrue(amapUri.startsWith("androidamap://"))
+        assertTrue(amapUri.contains("dlat=30.256") || amapUri.contains("lat=30.256"))
+        assertTrue(amapUri.contains("dlon=120.205") || amapUri.contains("lon=120.205"))
+        assertFalse(amapUri.contains("https://uri.amap.com"))
     }
 
     @Test
-    fun addressOnlyTargetUsesGeoSearch() {
+    fun addressOnlyTargetStillUsesAmapAppSearch() {
         val targets = buildNavigationTargets(
             RestaurantNavigationRequest(
                 name = "隐泉寿司",
@@ -35,8 +34,33 @@ class MapNavigationTest {
             )
         )
 
-        assertEquals(null, targets.amapUri)
-        assertEquals("geo:0,0?q=%E6%9D%AD%E5%B7%9E%E5%B8%82%E6%B5%B7%E7%B2%9F%E4%B8%AD%E5%BF%83%20%E9%9A%90%E6%B3%89%E5%AF%BF%E5%8F%B8", targets.geoUri)
-        assertTrue(targets.browserUri.contains("%E6%9D%AD%E5%B7%9E%E5%B8%82%E6%B5%B7%E7%B2%9F%E4%B8%AD%E5%BF%83"))
+        val amapUri = requireNotNull(targets.amapUri)
+        assertTrue(amapUri.startsWith("androidamap://"))
+        assertTrue(amapUri.contains("keywords=") || amapUri.contains("dname="))
+        assertFalse(amapUri.contains("https://uri.amap.com"))
+    }
+
+    @Test
+    fun mapNavigationDoesNotAttemptWebOrGenericGeoFallbacks() {
+        val source = java.nio.file.Path.of("app/src/main/java/com/dinnerplan/chidian/MapNavigation.kt")
+            .takeIf { it.toFile().exists() }
+            ?: java.nio.file.Path.of("src/main/java/com/dinnerplan/chidian/MapNavigation.kt")
+        val text = source.toFile().readText()
+
+        assertTrue("setPackage(\"com.autonavi.minimap\")" in text)
+        assertFalse("browserUri" in text)
+        assertFalse("https://uri.amap.com" in text)
+        assertFalse("geo:" in text)
+    }
+
+    @Test
+    fun manifestDeclaresAmapPackageQuery() {
+        val source = java.nio.file.Path.of("app/src/main/AndroidManifest.xml")
+            .takeIf { it.toFile().exists() }
+            ?: java.nio.file.Path.of("src/main/AndroidManifest.xml")
+        val text = source.toFile().readText()
+
+        assertTrue("<queries>" in text)
+        assertTrue("com.autonavi.minimap" in text)
     }
 }

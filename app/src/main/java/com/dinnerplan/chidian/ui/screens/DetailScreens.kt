@@ -54,7 +54,9 @@ import com.dinnerplan.chidian.DishItem
 import com.dinnerplan.chidian.MealPlan
 import com.dinnerplan.chidian.Recipe
 import com.dinnerplan.chidian.Restaurant
+import com.dinnerplan.chidian.friendlyReason
 import com.dinnerplan.chidian.recipeMetaLine
+import com.dinnerplan.chidian.UserReasonContext
 import com.dinnerplan.chidian.ui.components.FoodCard
 import com.dinnerplan.chidian.ui.components.FoodChip
 import com.dinnerplan.chidian.ui.components.FoodInfoTile
@@ -91,7 +93,7 @@ fun MealPlanDetailScreen(
             StaggeredVisible(index = 1) {
                 DetailHero(
                     title = plan.title,
-                    subtitle = plan.reason,
+                    subtitle = friendlyReason(plan.reason, UserReasonContext.MealPlan),
                     imageUrl = plan.coverUrl,
                     chips = plan.tags,
                     green = false
@@ -174,7 +176,7 @@ fun RecipeDetailScreen(
             StaggeredVisible(index = 1) {
                 DetailHero(
                     title = recipe.name,
-                    subtitle = recipe.reason,
+                    subtitle = friendlyReason(recipe.reason, UserReasonContext.Recipe),
                     imageUrl = recipe.coverUrl,
                     chips = recipe.tags,
                     green = false
@@ -205,7 +207,7 @@ fun RecipeDetailScreen(
         item {
             StaggeredVisible(index = 4) {
                 DetailSection(icon = Icons.Filled.Route, title = "步骤") {
-                    DetailStepList(recipe.steps)
+                    DetailStepList(recipe.steps, recipe.stepImageUrls)
                 }
             }
         }
@@ -258,7 +260,7 @@ fun RestaurantDetailScreen(
             StaggeredVisible(index = 1) {
                 DetailHero(
                     title = restaurant.name,
-                    subtitle = restaurant.reason,
+                    subtitle = friendlyReason(restaurant.reason, UserReasonContext.Restaurant),
                     imageUrl = restaurant.coverUrl,
                     chips = restaurant.tags,
                     green = true
@@ -470,7 +472,7 @@ private fun DetailTagGrid(items: List<String>) {
 }
 
 @Composable
-private fun DetailStepList(steps: List<String>) {
+private fun DetailStepList(steps: List<String>, stepImageUrls: List<String> = emptyList()) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         steps.filter { it.isNotBlank() }.forEachIndexed { index, step ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
@@ -483,7 +485,20 @@ private fun DetailStepList(steps: List<String>) {
                         fontSize = 12.sp
                     )
                 }
-                Text(step, color = ChiDianColors.Muted, lineHeight = 20.sp, modifier = Modifier.weight(1f))
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(step, color = ChiDianColors.Muted, lineHeight = 20.sp)
+                    stepImageUrls.getOrNull(index)?.takeIf { it.isNotBlank() }?.let { imageUrl ->
+                        AsyncImage(
+                            model = imageUrl,
+                            contentDescription = step,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(142.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                    }
+                }
             }
         }
     }

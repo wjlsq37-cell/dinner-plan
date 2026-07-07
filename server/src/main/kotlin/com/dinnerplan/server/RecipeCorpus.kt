@@ -171,13 +171,16 @@ class RecipeCorpusRepository(
 
     fun search(query: String, limit: Int = 24): RecipeCorpusSearchResult {
         if (!dbPath.exists()) return RecipeCorpusSearchResult(emptyList(), 0)
-        val normalized = query.trim()
-        if (normalized.isBlank()) return topRated(limit)
+        val terms = searchTerms(query)
+        if (terms.isEmpty()) return topRated(limit)
 
         return runCatching {
             connection().use { connection ->
-                val fts = searchWithFts(connection, normalized, limit)
-                val recipes = fts.ifEmpty { searchWithLike(connection, normalized, limit) }
+                val fts = terms.flatMap { term -> searchWithFts(connection, term, limit * 2) }
+                val merged = fts.ifEmpty {
+                    terms.flatMap { term -> searchWithLike(connection, term, limit * 2) }
+                }
+                val recipes = rankMergedResults(merged, terms).take(limit)
                 RecipeCorpusSearchResult(recipes = recipes, totalMatches = recipes.size)
             }
         }.getOrDefault(RecipeCorpusSearchResult(emptyList(), 0))
@@ -499,6 +502,55 @@ private fun bindRelevanceArgs(
         statement.setString(index++, like)
     }
     return index
+}
+
+private val searchSeparatorRegex = Regex("[\\s\\p{P}\\p{S}]+")
+
+private fun searchTerms(query: String): List<String> {
+    val compact = query.replace(searchSeparatorRegex, "").trim()
+    return (listOf(compact) + splitCleanSearchTerms(query))
+        .filter { it.isNotBlank() }
+        .distinct()
+}
+
+private fun splitCleanSearchTerms(query: String): List<String> {
+    return query
+        .split(searchSeparatorRegex)
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
+}
+
+private fun splitSearchTerms(query: String): List<String> {
+    return query
+        .replace(Regex("[\\p{Punct}，、。；：？！【】（）《》“”‘’…·]+"), " ")
+        .split(Regex("\\s+"))
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinct()
+}
+
+private fun rankMergedResults(recipes: List<RecipeDto>, terms: List<String>): List<RecipeDto> {
+    return recipes
+        .distinctBy { it.id }
+        .sortedWith(
+            compareByDescending<RecipeDto> { recipe -> recipeTermScore(recipe, terms) }
+                .thenByDescending { it.ratingStars ?: 0.0 }
+                .thenBy { it.name.length }
+        )
+}
+
+private fun recipeTermScore(recipe: RecipeDto, terms: List<String>): Int {
+    return terms.sumOf { term ->
+        scoreText(recipe.name, term, 20) +
+            scoreText(recipe.ingredients.joinToString(" ") { it.name }, term, 12) +
+            scoreText("${recipe.cuisine} ${recipe.taste.joinToString(" ")} ${recipe.tags.joinToString(" ")}", term, 8) +
+            scoreText("${recipe.reason} ${recipe.steps.joinToString(" ")} ${recipe.tips}", term, 4)
+    }
+}
+
+private fun scoreText(text: String, term: String, weight: Int): Int {
+    return if (text.lowercase().contains(term.lowercase())) weight else 0
 }
 
 private fun String.escapeLike(): String {

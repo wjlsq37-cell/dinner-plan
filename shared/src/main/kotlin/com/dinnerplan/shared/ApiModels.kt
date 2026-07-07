@@ -29,7 +29,8 @@ data class UserPreferenceDto(
     val defaultDistanceKm: Int = 5,
     val defaultBudget: String = "medium",
     val preferQuickRecipes: Boolean = true,
-    val preferOpenRestaurants: Boolean = true
+    val preferOpenRestaurants: Boolean = true,
+    val restaurantResultLimit: Int = 50
 )
 
 @Serializable
@@ -79,7 +80,8 @@ data class RecipeDto(
     val steps: List<String>,
     val tips: String,
     val ratingStars: Double? = null,
-    val source: String? = null
+    val source: String? = null,
+    val stepImageUrls: List<String> = emptyList()
 )
 
 @Serializable

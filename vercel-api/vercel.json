@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/health", "destination": "/api/health" }
+  ],
+  "functions": {
+    "api/**/*.ts": {
+      "maxDuration": 60
+    }
+  }
+}

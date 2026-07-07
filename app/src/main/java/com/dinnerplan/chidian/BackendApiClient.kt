@@ -100,10 +100,10 @@ class BackendApiClient {
             } catch (error: IOException) {
                 lastIoError = error
                 if (attempt == 1) {
-                    throw IOException("后端连接失败：${error.message ?: "连接被提前断开"}。请确认 Ktor 服务已启动，且 App 后端地址指向本机代理。", error)
+                    throw IOException("服务暂时不可用，请稍后再试。", error)
                 }
             }
         }
-        throw lastIoError ?: IOException("后端连接失败")
+        throw lastIoError ?: IOException("服务暂时不可用，请稍后再试。")
     }
 }

@@ -25,7 +25,8 @@ import kotlinx.serialization.json.jsonArray
 import okhttp3.Protocol
 
 internal class DirectAmapApiClient(
-    private val json: Json = Json { ignoreUnknownKeys = true }
+    private val json: Json = Json { ignoreUnknownKeys = true },
+    private val directAiApiClient: DirectAiApiClient = DirectAiApiClient()
 ) {
     private val client = HttpClient(OkHttp) {
         expectSuccess = false
@@ -50,10 +51,11 @@ internal class DirectAmapApiClient(
         preferences: UserPreferenceDto
     ): RestaurantRecommendationResponse {
         if (settings.amapWebKey.isBlank()) {
+            logInternalIssue("Direct Amap configuration missing", "amapWebKey is blank")
             return RestaurantRecommendationResponse(
                 restaurants = emptyList(),
                 locationUsed = LocationDto(text = locationText),
-                fallbackReason = "开发者模式已开启，但高德 Web Key 未填写。"
+                fallbackReason = friendlyStatusMessage("高德 Web Key 未填写", UserMessageContext.Config)
             )
         }
         return try {
@@ -62,47 +64,41 @@ internal class DirectAmapApiClient(
                     ?: return@withTimeout RestaurantRecommendationResponse(
                         restaurants = emptyList(),
                         locationUsed = location,
-                        fallbackReason = "没有可用位置，请手动输入城市、商圈或地标。"
+                        fallbackReason = friendlyStatusMessage("没有可用位置", UserMessageContext.Location)
                     )
 
-                val spec = RestaurantSearchSpec.fromQuery(query)
-                val pois = fetchAroundPois(
-                    settings = settings,
-                    keywords = spec.primaryKeywords,
-                    location = resolvedLocation,
-                    radiusMeters = preferences.defaultDistanceKm * 1000
-                )
-                val matched = filterAndRankDirectAmapPois(pois, spec, query)
-                if (matched.isNotEmpty()) {
-                    return@withTimeout RestaurantRecommendationResponse(matched, resolvedLocation, null)
-                }
-                if (spec.useGenericFallback) {
-                    val fallbackPois = fetchAroundPois(
+                val limit = preferences.restaurantResultLimit.coerceIn(1, 50)
+                val keywordPlan = directAiApiClient.parseRestaurantKeywordPlan(settings, query)
+                    ?: DirectRestaurantKeywordAiParser.fallbackPlan(query)
+                val candidates = DirectAmapMultiKeywordSearch { keyword ->
+                    fetchAroundCandidates(
                         settings = settings,
-                        keywords = listOf("餐厅"),
+                        keyword = keyword,
                         location = resolvedLocation,
                         radiusMeters = preferences.defaultDistanceKm * 1000
                     )
-                    val fallback = filterAndRankDirectAmapPois(fallbackPois, RestaurantSearchSpec.generic(), query)
+                }.search(keywordPlan)
+
+                if (candidates.isEmpty()) {
                     return@withTimeout RestaurantRecommendationResponse(
-                        restaurants = fallback,
+                        restaurants = emptyList(),
                         locationUsed = resolvedLocation,
-                        fallbackReason = if (fallback.isEmpty()) {
-                            "附近未找到日料相关店铺，也暂未找到附近餐厅。"
-                        } else {
-                            spec.genericFallbackReason
-                        }
+                        fallbackReason = friendlyStatusMessage("暂未找到", UserMessageContext.SearchEmpty)
                     )
                 }
+
+                val rerank = DirectRestaurantAiReranker.fallbackRerank(query, keywordPlan, candidates, limit)
+                val restaurants = DirectRestaurantAiReranker.toRestaurants(candidates, rerank, limit)
                 RestaurantRecommendationResponse(
-                    restaurants = emptyList(),
+                    restaurants = restaurants,
                     locationUsed = resolvedLocation,
-                    fallbackReason = "附近暂未找到符合条件的真实餐厅。"
+                    fallbackReason = null
                 )
             }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
+            logInternalIssue("Direct Amap request failed", error.message, error)
             RestaurantRecommendationResponse(
                 restaurants = emptyList(),
                 locationUsed = LocationDto(text = locationText),
@@ -157,6 +153,33 @@ internal class DirectAmapApiClient(
         return pois.distinctBy { it.string("id").ifBlank { it.string("name") } }
     }
 
+    private suspend fun fetchAroundCandidates(
+        settings: DeveloperSettings,
+        keyword: String,
+        location: LocationDto,
+        radiusMeters: Int
+    ): List<DirectRestaurantCandidate> {
+        if (keyword.isBlank()) return emptyList()
+        val root = getAmapJson("https://restapi.amap.com/v3/place/around") {
+            parameter("key", settings.amapWebKey.trim())
+            parameter("location", "${location.longitude},${location.latitude}")
+            parameter("keywords", keyword)
+            parameter("types", "050000")
+            parameter("radius", radiusMeters.coerceIn(500, 10000))
+            parameter("offset", 20)
+            parameter("page", 1)
+            parameter("extensions", "all")
+        }
+        if (root.string("status") != "1") {
+            throw IllegalStateException(root.amapApiMessage())
+        }
+        val items = root["pois"] as? JsonArray ?: JsonArray(emptyList())
+        return items.jsonArray
+            .mapNotNull { it as? JsonObject }
+            .mapNotNull { it.toDirectRestaurantCandidate() }
+            .distinctBy { it.dedupeKey }
+    }
+
     private suspend fun getAmapJson(
         url: String,
         block: io.ktor.client.request.HttpRequestBuilder.() -> Unit
@@ -192,6 +215,45 @@ private fun filterAndRankDirectAmapPois(
         .map { it.first }
 }
 
+private fun JsonObject.toDirectRestaurantCandidate(): DirectRestaurantCandidate? {
+    val locationParts = string("location").split(",")
+    val lng = locationParts.getOrNull(0)?.toDoubleOrNull()
+    val lat = locationParts.getOrNull(1)?.toDoubleOrNull()
+    val bizExt = this["biz_ext"] as? JsonObject
+    val photos = this["photos"] as? JsonArray
+    val photoObjects = photos?.jsonArray?.mapNotNull { it as? JsonObject }.orEmpty()
+    val name = string("name")
+    if (name.isBlank()) return null
+    val address = string("address")
+    val type = string("type").ifBlank { "餐饮" }
+    val rawDistance = string("distance")
+    val distance = rawDistance.toIntOrNull()?.let { "${it}m" }.orEmpty().ifBlank { rawDistance }
+    val businessArea = string("business_area")
+    val photoTitles = photoObjects.map { it.string("title") }.filter { it.isNotBlank() }
+    val rawTags = string("tag")
+        .split(Regex("[,，、;；\\s]+"))
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+    val category = type.substringBefore(";").ifBlank { "餐饮" }
+    return DirectRestaurantCandidate(
+        id = directRestaurantCandidateId(rawId = string("id"), name = name, address = address),
+        name = name,
+        type = type,
+        address = address,
+        distance = distance,
+        rating = bizExt?.string("rating").orEmpty(),
+        cost = bizExt?.string("cost").orEmpty(),
+        businessArea = businessArea,
+        tags = (listOf(category, businessArea) + rawTags).filter { it.isNotBlank() }.distinct(),
+        description = listOf(type, string("tag")).filter { it.isNotBlank() }.joinToString(" "),
+        photoTitles = photoTitles,
+        phone = string("tel"),
+        coverUrl = photoObjects.firstOrNull()?.string("url").orEmpty(),
+        latitude = lat,
+        longitude = lng
+    )
+}
+
 private fun JsonObject.toDirectRestaurantDto(query: String): RestaurantDto? {
     val locationParts = string("location").split(",")
     val lng = locationParts.getOrNull(0)?.toDoubleOrNull()
@@ -225,24 +287,21 @@ private fun JsonObject.toDirectRestaurantDto(query: String): RestaurantDto? {
         open = "营业状态以地图为准",
         phone = string("tel").ifBlank { "电话暂无" },
         coverUrl = photoUrl,
-        reason = "来自高德 POI：距离 ${distance.ifBlank { "未知" }}，类型匹配 ${type.substringBefore(";")}。",
+        reason = "这家店和你的搜索更接近，距离也比较合适。",
         latitude = lat,
         longitude = lng
     )
 }
 
+private fun directRestaurantCandidateId(rawId: String, name: String, address: String): String {
+    if (rawId.isNotBlank()) return "amap_$rawId"
+    val hash = "${name.trim()}|${address.trim()}".hashCode().toString().replace("-", "n")
+    return "amap_generated_$hash"
+}
+
 private fun amapErrorMessage(error: Throwable): String {
     val message = error.message.orEmpty()
-    return when {
-        message.contains("INVALID_USER_KEY", ignoreCase = true) ||
-            message.contains("INVALID_USER_SCODE", ignoreCase = true) ||
-            message.contains("USERKEY_PLAT_NOMATCH", ignoreCase = true) ||
-            message.contains("key", ignoreCase = true) ->
-            "高德 Web Key 不正确、Key 类型不匹配或未开通 Web 服务：${message.ifBlank { "未知错误" }}"
-        message.contains("timeout", ignoreCase = true) || error is kotlinx.coroutines.TimeoutCancellationException ->
-            "高德地图请求超时，请调大最大等待时长或稍后重试。"
-        else -> "高德地图请求失败：${message.ifBlank { "未知错误" }}"
-    }
+    return friendlyStatusMessage(message.ifBlank { "地图请求失败" }, UserMessageContext.Restaurant)
 }
 
 private fun JsonObject.string(key: String): String = (this[key] as? JsonPrimitive)?.contentOrNull.orEmpty().trim()

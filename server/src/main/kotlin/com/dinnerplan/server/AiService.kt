@@ -79,33 +79,63 @@ class AiService(
         )
     }
 
+    suspend fun parseRestaurantKeywordPlan(query: String): RestaurantKeywordPlan? {
+        if (!config.aiConfigured) return null
+        val system = """
+            你是餐厅搜索关键词解析助手。只输出 JSON，不要解释。
+            字段必须是 summary、keywords、mustMatch、preferMatch、negativeMatch、searchStrategy。
+            keywords 是要分别用于地图搜索的关键词，不要把所有词拼成一个长关键词。
+            searchStrategy 固定输出 separate。
+        """.trimIndent()
+        val user = "用户附近吃需求：$query"
+        return requestRestaurantKeywordPlan(system, user, useJsonMode = true)
+            ?: requestRestaurantKeywordPlan(system, user, useJsonMode = false)
+    }
+
+    suspend fun rerankRestaurants(
+        query: String,
+        plan: RestaurantKeywordPlan,
+        candidates: List<RestaurantCandidate>,
+        limit: Int
+    ): RestaurantRerankResult? {
+        if (!config.aiConfigured || candidates.isEmpty()) return null
+        val system = """
+            你是餐厅候选筛选助手。只输出 JSON，不要解释。
+            字段必须是 rankedIds、excluded、matchReasons、riskWarnings。
+            你只能从候选餐厅 id 中选择，不能新增、不能编造餐厅。
+            不能修改评分、距离、地址、人均、名称等原始信息。
+            rankedIds 最多返回 $limit 个 id，按匹配度排序。
+        """.trimIndent()
+        val candidateJson = json.encodeToString(ListSerializer(RestaurantCandidate.serializer()), candidates.take(40))
+        val user = """
+            用户原始需求：$query
+            关键词解析：${json.encodeToString(RestaurantKeywordPlan.serializer(), plan)}
+            显示数量：$limit
+            候选餐厅：$candidateJson
+        """.trimIndent()
+        return requestRestaurantRerank(system, user, useJsonMode = true)
+            ?: requestRestaurantRerank(system, user, useJsonMode = false)
+    }
+
     suspend fun generateCookRecommendation(
         query: String,
         mode: RecommendationModeDto,
         preferences: UserPreferenceDto
     ): CookRecommendationResponse? {
         if (!config.aiConfigured) return null
-        val modeText = if (mode == RecommendationModeDto.RECIPE_COMBO) "组合菜单" else "单道菜"
-        val system = """
-            你是《吃点啥》的做饭推荐后端。只输出 JSON，不要解释。
-            JSON 字段必须是：intent、summary、mealPlans、recipes。
-            intent 只能是 RECIPE_SINGLE 或 RECIPE_COMBO。
-            mealPlans 数组项字段：id,title,structure,cookTime,servings,coverUrl,tags,reason,dishes,shoppingList,timeline。
-            dishes 数组项字段：course,name,note,badge,recipeId；badge 只能是 Meat、Veg、Soup、Staple。
-            recipes 数组项字段：id,name,cuisine,taste,tags,difficulty,cookTime,servings,coverUrl,reason,ingredients,steps,tips。
-            ingredients 数组项字段：name,amount。
-            coverUrl 可用空字符串；不要编造餐厅，只生成做饭菜谱。
-        """.trimIndent()
-        val user = """
-            用户需求：$query
-            推荐类型：$modeText
-            偏好口味：${preferences.tastes.joinToString("、")}
-            避免食材：${preferences.avoids.joinToString("、")}
-        """.trimIndent()
-
-        val generation = requestCookGeneration(system, user, useJsonMode = true)
-            ?: requestCookGeneration(system, user, useJsonMode = false)
+        val firstPrompt = AiRecipeGenerator.buildPrompt(query, mode, preferences)
+        val firstGeneration = requestCookGeneration(firstPrompt.system, firstPrompt.user, useJsonMode = true)
+            ?: requestCookGeneration(firstPrompt.system, firstPrompt.user, useJsonMode = false)
             ?: return null
+        val violatedTerms = AiRecipeGenerator.violatedAvoidTerms(firstGeneration, preferences.avoids)
+        val generation = if (violatedTerms.isNotEmpty()) {
+            val retryPrompt = AiRecipeGenerator.buildPrompt(query, mode, preferences, violatedTerms)
+            requestCookGeneration(retryPrompt.system, retryPrompt.user, useJsonMode = true)
+                ?: requestCookGeneration(retryPrompt.system, retryPrompt.user, useJsonMode = false)
+                ?: firstGeneration
+        } else {
+            firstGeneration
+        }.let { AiRecipeGenerator.filterAvoidingTerms(it, preferences.avoids) }
         val recipes = generation.recipes.map { recipe ->
             recipe.copy(
                 id = recipe.id.ifBlank { "ai_recipe_${recipe.name.hashCode().toString().replace("-", "n")}" },
@@ -202,6 +232,82 @@ class AiService(
         } catch (error: Throwable) {
             println(
                 "AI cook generation failed (jsonMode=$useJsonMode, model=${config.aiModel}): " +
+                    "${error::class.simpleName}: ${error.message}"
+            )
+            null
+        }
+    }
+
+    private suspend fun requestRestaurantKeywordPlan(system: String, user: String, useJsonMode: Boolean): RestaurantKeywordPlan? {
+        return try {
+            val response = client.post(chatCompletionsUrl()) {
+                bearerAuth(config.aiApiKey)
+                contentType(ContentType.Application.Json)
+                if (useJsonMode) {
+                    setBody(
+                        ChatCompletionRequest(
+                            model = config.aiModel,
+                            messages = chatMessages(system, user),
+                            temperature = 0.2,
+                            responseFormat = ResponseFormat("json_object")
+                        )
+                    )
+                } else {
+                    setBody(
+                        PlainChatCompletionRequest(
+                            model = config.aiModel,
+                            messages = chatMessages(system, user),
+                            temperature = 0.2
+                        )
+                    )
+                }
+            }.body<ChatCompletionResponse>()
+
+            val content = response.choices.firstOrNull()?.message?.content.orEmpty()
+            json.decodeFromString(RestaurantKeywordPlan.serializer(), content.extractJsonObject()).normalized()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            println(
+                "AI restaurant keyword parse failed (jsonMode=$useJsonMode, model=${config.aiModel}): " +
+                    "${error::class.simpleName}: ${error.message}"
+            )
+            null
+        }
+    }
+
+    private suspend fun requestRestaurantRerank(system: String, user: String, useJsonMode: Boolean): RestaurantRerankResult? {
+        return try {
+            val response = client.post(chatCompletionsUrl()) {
+                bearerAuth(config.aiApiKey)
+                contentType(ContentType.Application.Json)
+                if (useJsonMode) {
+                    setBody(
+                        ChatCompletionRequest(
+                            model = config.aiModel,
+                            messages = chatMessages(system, user),
+                            temperature = 0.2,
+                            responseFormat = ResponseFormat("json_object")
+                        )
+                    )
+                } else {
+                    setBody(
+                        PlainChatCompletionRequest(
+                            model = config.aiModel,
+                            messages = chatMessages(system, user),
+                            temperature = 0.2
+                        )
+                    )
+                }
+            }.body<ChatCompletionResponse>()
+
+            val content = response.choices.firstOrNull()?.message?.content.orEmpty()
+            json.decodeFromString(RestaurantRerankResult.serializer(), content.extractJsonObject())
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            println(
+                "AI restaurant rerank failed (jsonMode=$useJsonMode, model=${config.aiModel}): " +
                     "${error::class.simpleName}: ${error.message}"
             )
             null

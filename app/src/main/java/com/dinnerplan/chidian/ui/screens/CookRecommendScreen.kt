@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,10 +38,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.dinnerplan.chidian.AppUiState
 import com.dinnerplan.chidian.CookSourceMode
 import com.dinnerplan.chidian.DishBadge
@@ -49,7 +53,11 @@ import com.dinnerplan.chidian.Recipe
 import com.dinnerplan.chidian.RecommendMode
 import com.dinnerplan.chidian.appendQueryTerm
 import com.dinnerplan.chidian.formatElapsedTime
+import com.dinnerplan.chidian.friendlyReason
+import com.dinnerplan.chidian.friendlyStatusMessage
 import com.dinnerplan.chidian.recipeMetaLine
+import com.dinnerplan.chidian.UserMessageContext
+import com.dinnerplan.chidian.UserReasonContext
 import com.dinnerplan.chidian.ui.components.EmptyFoodState
 import com.dinnerplan.chidian.ui.components.FoodCard
 import com.dinnerplan.chidian.ui.components.FoodChip
@@ -65,6 +73,7 @@ import com.dinnerplan.chidian.ui.theme.ChiDianColors
 @Composable
 fun CookRecommendScreen(
     state: AppUiState,
+    listState: LazyListState,
     mealPlans: List<MealPlan>,
     recipes: List<Recipe>,
     onStateChange: (AppUiState) -> Unit,
@@ -78,6 +87,7 @@ fun CookRecommendScreen(
     onReroll: () -> Unit
 ) {
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -143,8 +153,8 @@ fun CookRecommendScreen(
                 StaggeredVisible(index = 4) {
                     StatusCard(
                         icon = Icons.Filled.Info,
-                        title = if (state.developerSettings.enabled) "开发者直连状态" else "后端状态",
-                        message = reason
+                        title = "推荐状态",
+                        message = friendlyStatusMessage(reason, UserMessageContext.Recipe)
                     )
                 }
             }
@@ -178,11 +188,7 @@ fun CookRecommendScreen(
                         EmptyFoodState(
                             icon = Icons.Filled.Info,
                             title = "暂时没有组合菜单",
-                            message = if (state.developerSettings.enabled) {
-                                "可以换一个做饭需求，或检查开发者模式里的 AI/万维易源配置。"
-                            } else {
-                                "可以换一个做饭需求，或检查后端服务是否已启动。"
-                            },
+                            message = "可以换一个做饭需求，或放宽条件再试一次。",
                             actionText = "重新生成",
                             onAction = onSearch
                         )
@@ -233,7 +239,7 @@ private fun CookLoadingStatus(
     onCancelSearch: () -> Unit
 ) {
     if (state.cookSourceMode == CookSourceMode.AiGenerated) {
-        val aiTitle = if (state.developerSettings.enabled) "AI 正在直连生成这一桌饭" else "AI 正在通过后端生成这一桌饭"
+        val aiTitle = "AI 正在生成这一桌饭"
         val aiMessage = "已用时 ${formatElapsedTime(state.cookElapsedSeconds)}，可以随时取消并保留上一次成功结果。"
 
         FoodCard {
@@ -275,7 +281,7 @@ private fun CookLoadingStatus(
         StatusCard(
             icon = Icons.Filled.Search,
             title = "正在搜索菜谱库",
-            message = "会优先匹配菜名、食材和标签，并按星级排序。"
+            message = "正在为你查找更合适的做饭灵感。"
         )
     }
 }
@@ -288,6 +294,9 @@ private fun CookMealPlanCard(
     onToggleSave: () -> Unit
 ) {
     FoodCard(modifier = Modifier.clickable(onClick = onClick)) {
+        if (plan.coverUrl.isNotBlank()) {
+            CookCardCover(imageUrl = plan.coverUrl, description = plan.title)
+        }
         Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(
                 text = plan.title,
@@ -306,7 +315,7 @@ private fun CookMealPlanCard(
             )
             FoodTagRow(plan.tags)
             Text(
-                text = plan.reason,
+                text = friendlyReason(plan.reason, UserReasonContext.MealPlan),
                 color = ChiDianColors.Muted,
                 fontSize = 13.sp,
                 lineHeight = 19.sp,
@@ -332,6 +341,9 @@ private fun CookRecipeCard(
     onToggleSave: () -> Unit
 ) {
     FoodCard(modifier = Modifier.clickable(onClick = onClick)) {
+        if (recipe.coverUrl.isNotBlank()) {
+            CookCardCover(imageUrl = recipe.coverUrl, description = recipe.name)
+        }
         Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Text(
                 text = recipe.name,
@@ -349,11 +361,8 @@ private fun CookRecipeCard(
                 overflow = TextOverflow.Ellipsis
             )
             FoodTagRow(recipe.tags)
-            recipe.source?.takeIf { it.isNotBlank() }?.let { source ->
-                FoodTagRow(listOf("来源：$source"), green = true)
-            }
             Text(
-                text = recipe.reason,
+                text = friendlyReason(recipe.reason, UserReasonContext.Recipe),
                 color = ChiDianColors.Muted,
                 fontSize = 13.sp,
                 lineHeight = 19.sp,
@@ -368,6 +377,19 @@ private fun CookRecipeCard(
             onSave = onToggleSave
         )
     }
+}
+
+@Composable
+private fun CookCardCover(imageUrl: String, description: String) {
+    AsyncImage(
+        model = imageUrl,
+        contentDescription = description,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(132.dp)
+            .clip(RoundedCornerShape(8.dp))
+    )
 }
 
 @Composable

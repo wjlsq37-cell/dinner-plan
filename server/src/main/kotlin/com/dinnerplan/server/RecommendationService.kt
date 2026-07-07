@@ -4,6 +4,7 @@ import com.dinnerplan.shared.CookRecommendationResponse
 import com.dinnerplan.shared.CookSourceDto
 import com.dinnerplan.shared.DishItemDto
 import com.dinnerplan.shared.MealPlanDto
+import com.dinnerplan.shared.RecipeDatabaseFilter
 import com.dinnerplan.shared.RecipeDto
 import com.dinnerplan.shared.RecommendationModeDto
 import com.dinnerplan.shared.RecommendationRequest
@@ -78,11 +79,16 @@ class RecommendationService(
     }
 
     private fun recommendCookFromDatabase(request: RecommendationRequest): CookRecommendationResponse {
-        val corpusSearch = recipeCorpusRepository.search(request.query, limit = 24)
-        if (corpusSearch.recipes.isNotEmpty()) {
+        val corpusSearch = recipeCorpusRepository.search(request.query, limit = 48)
+        val filteredRecipes = RecipeDatabaseFilter.filterAndSort(
+            recipes = corpusSearch.recipes,
+            query = request.query,
+            preferences = request.preferences
+        )
+        if (filteredRecipes.isNotEmpty()) {
             val comboIntent = isComboIntent(request, aiIntent = null)
             val mealPlans = if (comboIntent) {
-                listOf(buildCorpusMealPlan(request, corpusSearch.recipes))
+                listOf(buildCorpusMealPlan(request, filteredRecipes))
             } else {
                 emptyList()
             }
@@ -90,9 +96,9 @@ class RecommendationService(
                 intent = if (comboIntent) RecommendationModeDto.RECIPE_COMBO else RecommendationModeDto.RECIPE_SINGLE,
                 summary = "已从本地菜谱库按“${request.query}”搜索，结果按星级优先排序。",
                 mealPlans = mealPlans,
-                recipes = corpusSearch.recipes,
+                recipes = filteredRecipes,
                 source = CookSourceDto.DATABASE,
-                totalMatches = corpusSearch.totalMatches
+                totalMatches = filteredRecipes.size
             )
         }
 
@@ -117,17 +123,22 @@ class RecommendationService(
         )
         if (generated != null) return generated
 
-        val corpusSearch = recipeCorpusRepository.search(request.query, limit = 12)
-        if (corpusSearch.recipes.isNotEmpty()) {
+        val corpusSearch = recipeCorpusRepository.search(request.query, limit = 24)
+        val filteredRecipes = RecipeDatabaseFilter.filterAndSort(
+            recipes = corpusSearch.recipes,
+            query = request.query,
+            preferences = request.preferences
+        )
+        if (filteredRecipes.isNotEmpty()) {
             val comboIntent = isComboIntent(request, aiIntent = null)
             return CookRecommendationResponse(
                 intent = if (comboIntent) RecommendationModeDto.RECIPE_COMBO else RecommendationModeDto.RECIPE_SINGLE,
                 summary = "AI 暂时不可用，已改用本地菜谱库搜索。",
-                mealPlans = if (comboIntent) listOf(buildCorpusMealPlan(request, corpusSearch.recipes)) else emptyList(),
-                recipes = corpusSearch.recipes,
+                mealPlans = if (comboIntent) listOf(buildCorpusMealPlan(request, filteredRecipes)) else emptyList(),
+                recipes = filteredRecipes,
                 fallbackReason = "AI 未配置或请求失败，已改用本地菜谱库结果。",
                 source = CookSourceDto.AI_GENERATED,
-                totalMatches = corpusSearch.totalMatches
+                totalMatches = filteredRecipes.size
             )
         }
 
@@ -151,15 +162,15 @@ class RecommendationService(
             append(" ")
             append(request.preferences.tastes.joinToString(" "))
             append(" ")
-            append(request.preferences.avoids.joinToString(" "))
-            append(" ")
             append(aiIntent?.keywords.orEmpty().joinToString(" "))
             append(" ")
             append(aiIntent?.taste.orEmpty().joinToString(" "))
         }
 
-        val seedMealPlans = seedRepository.mealPlans.sortedByDescending { plan -> score(plan.tags + plan.title + plan.reason, query) }
-        val recipes = seedRepository.recipes.sortedByDescending { recipe -> score(recipe.tags + recipe.taste + recipe.name + recipe.reason, query) }
+        val seedMealPlans = seedRepository.mealPlans
+            .filterNot { plan -> RecipeDatabaseFilter.containsAvoidTerm(plan, request.preferences.avoids) }
+            .sortedByDescending { plan -> score(plan.tags + plan.title + plan.reason, query) }
+        val recipes = RecipeDatabaseFilter.filterAndSort(seedRepository.recipes, request.query, request.preferences)
         val comboIntent = isComboIntent(request, aiIntent)
         val mealPlans = if (comboIntent) {
             val adaptivePlan = buildAdaptiveMealPlan(request, aiIntent)
@@ -180,20 +191,31 @@ class RecommendationService(
     }
 
     suspend fun recommendRestaurants(request: RecommendationRequest): RestaurantRecommendationResponse {
-        val aiIntent = aiService.parseRestaurantIntent(request.query)
         val radius = parseRadiusMeters(request.query, request.preferences.defaultDistanceKm)
-        val result = amapService.searchRestaurants(
-            query = buildString {
-                append(request.query)
-                append(" ")
-                append(aiIntent?.keywords.orEmpty().joinToString(" "))
-            },
+        val limit = request.preferences.restaurantResultLimit.coerceIn(1, 50)
+        val keywordPlan = aiService.parseRestaurantKeywordPlan(request.query)
+            ?: RestaurantKeywordAiParser.fallbackPlan(request.query)
+        val result = amapService.searchRestaurantCandidates(
+            plan = keywordPlan,
             location = request.location,
             radiusMeters = radius
         )
+        if (result.candidates.isEmpty()) {
+            return RestaurantRecommendationResponse(
+                restaurants = emptyList(),
+                locationUsed = result.locationUsed,
+                fallbackReason = result.fallbackReason
+            )
+        }
+        val rerank = RestaurantAiReranker.fallbackRerank(
+            query = request.query,
+            plan = keywordPlan,
+            candidates = result.candidates,
+            limit = limit
+        )
 
         return RestaurantRecommendationResponse(
-            restaurants = result.restaurants,
+            restaurants = RestaurantAiReranker.toRestaurants(result.candidates, rerank, limit),
             locationUsed = result.locationUsed,
             fallbackReason = result.fallbackReason
         )

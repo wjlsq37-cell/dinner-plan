@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,6 +44,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -57,10 +59,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.dinnerplan.chidian.AppUiState
+import com.dinnerplan.chidian.AiProvider
+import com.dinnerplan.chidian.DEEPSEEK_AI_BASE_URL
+import com.dinnerplan.chidian.DEEPSEEK_MODEL_FLASH
+import com.dinnerplan.chidian.DEEPSEEK_MODEL_PRO
 import com.dinnerplan.chidian.DeveloperSettings
 import com.dinnerplan.chidian.MealPlan
 import com.dinnerplan.chidian.MockData
 import com.dinnerplan.chidian.PreferenceTarget
+import com.dinnerplan.chidian.RecipeApiSource
 import com.dinnerplan.chidian.Recipe
 import com.dinnerplan.chidian.Restaurant
 import com.dinnerplan.chidian.SavedFilter
@@ -75,10 +82,12 @@ import com.dinnerplan.chidian.ui.components.FoodInfoTile
 import com.dinnerplan.chidian.ui.components.FoodTopBar
 import com.dinnerplan.chidian.ui.components.StaggeredVisible
 import com.dinnerplan.chidian.ui.theme.ChiDianColors
+import kotlinx.coroutines.launch
 
 @Composable
 fun SavedScreen(
     state: AppUiState,
+    listState: LazyListState,
     onStateChange: (AppUiState) -> Unit,
     onBack: () -> Unit,
     onMeal: (String) -> Unit,
@@ -87,8 +96,10 @@ fun SavedScreen(
     onInfo: () -> Unit
 ) {
     val savedItems = savedItemsFor(state)
+    val scope = rememberCoroutineScope()
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -108,7 +119,10 @@ fun SavedScreen(
             StaggeredVisible(index = 1) {
                 SavedFilterTabs(
                     selected = state.savedFilter,
-                    onSelect = { filter -> onStateChange(state.copy(savedFilter = filter)) }
+                    onSelect = { filter ->
+                        onStateChange(state.copy(savedFilter = filter))
+                        scope.launch { listState.animateScrollToItem(0) }
+                    }
                 )
             }
         }
@@ -293,7 +307,7 @@ fun SettingsScreen(
             }
         }
         item {
-            StaggeredVisible(index = 5) {
+            StaggeredVisible(index = 6) {
                 FoodCard {
                     PreferenceToggleRow(
                         title = "优先推荐快手菜",
@@ -335,7 +349,7 @@ internal fun DeveloperSettingsScreen(
             StaggeredVisible(index = 0) {
                 FoodTopBar(
                     title = "开发者模式",
-                    subtitle = if (settings.enabled) "手机 App 直连 AI、高德和万维易源" else "当前通过本地后端代理",
+                    subtitle = if (settings.enabled) "手机 App 直连 AI、高德和万维易源" else "当前通过线上后端服务",
                     onBack = onBack,
                     actionIcon = Icons.Filled.Save,
                     onAction = onSave
@@ -351,7 +365,7 @@ internal fun DeveloperSettingsScreen(
                         onToggle = { onSettingsChange(settings.copy(enabled = !settings.enabled)) }
                     )
                     Text(
-                        text = if (settings.enabled) "已启用直连调试链路。" else "后端代理模式仍可编辑后端地址。",
+                        text = if (settings.enabled) "已启用直连服务配置。" else "非开发者模式会通过线上或本地后端地址访问服务。",
                         color = ChiDianColors.Muted,
                         fontSize = 12.sp,
                         lineHeight = 18.sp
@@ -362,8 +376,8 @@ internal fun DeveloperSettingsScreen(
         item {
             StaggeredVisible(index = 2) {
                 FoodCard {
-                    SectionTitle(icon = Icons.Filled.Settings, title = "后端地址")
-                    Text("开发者功能关闭时，App 会通过这个地址访问本地后端。", color = ChiDianColors.Muted, fontSize = 12.sp)
+                    SectionTitle(icon = Icons.Filled.Settings, title = "线上/本地后端地址")
+                    Text("开发者功能关闭时，App 会通过这个地址访问 Vercel 线上服务或本地后端。", color = ChiDianColors.Muted, fontSize = 12.sp)
                     OutlinedTextField(
                         value = backendBaseUrl,
                         onValueChange = onBackendBaseUrlChange,
@@ -378,15 +392,55 @@ internal fun DeveloperSettingsScreen(
         item {
             StaggeredVisible(index = 3) {
                 DeveloperConfigCard(title = "AI 设置", enabled = controlsEnabled, icon = Icons.Filled.Key) {
-                    OutlinedTextField(
-                        value = settings.aiBaseUrl,
-                        onValueChange = { onSettingsChange(settings.copy(aiBaseUrl = it)) },
-                        enabled = controlsEnabled,
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp),
-                        label = { Text("AI Base URL") }
-                    )
+                    Text("AI 来源", color = ChiDianColors.Ink, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        AiProvider.entries.forEach { provider ->
+                            FoodChip(
+                                text = provider.label,
+                                selected = settings.selectedAiProvider == provider,
+                                modifier = Modifier.clickable(enabled = controlsEnabled) {
+                                    val next = when (provider) {
+                                        AiProvider.DeepSeek -> settings.copy(
+                                            aiProvider = provider.id,
+                                            aiBaseUrl = DEEPSEEK_AI_BASE_URL,
+                                            aiModel = settings.aiModel.takeIf {
+                                                it == DEEPSEEK_MODEL_FLASH || it == DEEPSEEK_MODEL_PRO
+                                            } ?: DEEPSEEK_MODEL_FLASH
+                                        )
+                                        AiProvider.Custom -> settings.copy(
+                                            aiProvider = provider.id,
+                                            aiBaseUrl = settings.aiBaseUrl.takeUnless { it == DEEPSEEK_AI_BASE_URL }.orEmpty(),
+                                            aiModel = settings.aiModel.takeUnless {
+                                                it == DEEPSEEK_MODEL_FLASH || it == DEEPSEEK_MODEL_PRO
+                                            }.orEmpty()
+                                        )
+                                    }
+                                    onSettingsChange(next)
+                                }
+                            )
+                        }
+                    }
+                    if (settings.selectedAiProvider == AiProvider.DeepSeek) {
+                        Text(
+                            "DeepSeek URL：$DEEPSEEK_AI_BASE_URL",
+                            color = ChiDianColors.Muted,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp
+                        )
+                    } else {
+                        OutlinedTextField(
+                            value = settings.aiBaseUrl,
+                            onValueChange = { onSettingsChange(settings.copy(aiBaseUrl = it)) },
+                            enabled = controlsEnabled,
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            label = { Text("AI Base URL") }
+                        )
+                    }
                     OutlinedTextField(
                         value = settings.aiApiKey,
                         onValueChange = { onSettingsChange(settings.copy(aiApiKey = it)) },
@@ -397,15 +451,39 @@ internal fun DeveloperSettingsScreen(
                         label = { Text("AI API Key") },
                         visualTransformation = PasswordVisualTransformation()
                     )
-                    OutlinedTextField(
-                        value = settings.aiModel,
-                        onValueChange = { onSettingsChange(settings.copy(aiModel = it)) },
-                        enabled = controlsEnabled,
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        shape = RoundedCornerShape(8.dp),
-                        label = { Text("AI Model") }
-                    )
+                    if (settings.selectedAiProvider == AiProvider.DeepSeek) {
+                        Text("DeepSeek 模型", color = ChiDianColors.Ink, fontWeight = FontWeight.Bold)
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            listOf(DEEPSEEK_MODEL_FLASH, DEEPSEEK_MODEL_PRO).forEach { model ->
+                                FoodChip(
+                                    text = model,
+                                    selected = settings.aiModel == model,
+                                    modifier = Modifier.clickable(enabled = controlsEnabled) {
+                                        onSettingsChange(
+                                            settings.copy(
+                                                aiProvider = AiProvider.DeepSeek.id,
+                                                aiBaseUrl = DEEPSEEK_AI_BASE_URL,
+                                                aiModel = model
+                                            )
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = settings.aiModel,
+                            onValueChange = { onSettingsChange(settings.copy(aiModel = it)) },
+                            enabled = controlsEnabled,
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            label = { Text("AI Model") }
+                        )
+                    }
                     ClearTextButton("清空 AI Key", controlsEnabled) {
                         onSettingsChange(settings.copy(aiApiKey = ""))
                     }
@@ -434,17 +512,75 @@ internal fun DeveloperSettingsScreen(
         item {
             StaggeredVisible(index = 5) {
                 DeveloperConfigCard(title = "菜谱 API 设置", enabled = controlsEnabled, icon = Icons.Filled.Restaurant) {
-                    Text("接口地址：$WANWEI_RECIPE_BASE_URL", color = ChiDianColors.Muted, fontSize = 12.sp)
+                    val selectedSource = settings.selectedRecipeApiSource
+                    Text("菜谱数据源", color = ChiDianColors.Ink, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        RecipeApiSource.entries.forEach { source ->
+                            FoodChip(
+                                text = source.label,
+                                selected = selectedSource == source,
+                                modifier = Modifier.clickable {
+                                    onSettingsChange(
+                                        settings.copy(
+                                            recipeApiSource = source.id,
+                                            recipeApiBaseUrl = ""
+                                        )
+                                    )
+                                }
+                            )
+                        }
+                    }
+                    Text(
+                        "当前接口：${settings.effectiveRecipeApiUrl.ifBlank { "请手动填写" }}",
+                        color = ChiDianColors.Muted,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp
+                    )
                     OutlinedTextField(
-                        value = settings.wanweiRecipeAppKey,
-                        onValueChange = { onSettingsChange(settings.copy(wanweiRecipeAppKey = it)) },
+                        value = settings.recipeApiBaseUrl,
+                        onValueChange = { onSettingsChange(settings.copy(recipeApiBaseUrl = it)) },
                         enabled = controlsEnabled,
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         shape = RoundedCornerShape(8.dp),
-                        label = { Text("万维易源 AppKey") },
-                        visualTransformation = PasswordVisualTransformation()
+                        label = { Text("接口地址（留空使用预设，可手动填写）") }
                     )
+                    if (selectedSource == RecipeApiSource.Wanwei) {
+                        OutlinedTextField(
+                            value = settings.wanweiRecipeAppKey,
+                            onValueChange = { onSettingsChange(settings.copy(wanweiRecipeAppKey = it)) },
+                            enabled = controlsEnabled,
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            label = { Text("万维易源 AppKey") },
+                            visualTransformation = PasswordVisualTransformation()
+                        )
+                    } else {
+                        OutlinedTextField(
+                            value = settings.recipeApiAppId,
+                            onValueChange = { onSettingsChange(settings.copy(recipeApiAppId = it)) },
+                            enabled = controlsEnabled,
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            label = { Text("mxnzp / 自定义 app_id") },
+                            visualTransformation = PasswordVisualTransformation()
+                        )
+                        OutlinedTextField(
+                            value = settings.recipeApiSecret,
+                            onValueChange = { onSettingsChange(settings.copy(recipeApiSecret = it)) },
+                            enabled = controlsEnabled,
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(8.dp),
+                            label = { Text("mxnzp / 自定义 app_secret") },
+                            visualTransformation = PasswordVisualTransformation()
+                        )
+                    }
                     OutlinedTextField(
                         value = settings.safePageSize.toString(),
                         onValueChange = { text: String ->
@@ -459,8 +595,8 @@ internal fun DeveloperSettingsScreen(
                         shape = RoundedCornerShape(8.dp),
                         label = { Text("每页数量（1-50）") }
                     )
-                    ClearTextButton("清空万维 AppKey", controlsEnabled) {
-                        onSettingsChange(settings.copy(wanweiRecipeAppKey = ""))
+                    ClearTextButton("清空菜谱 API 密钥", controlsEnabled) {
+                        onSettingsChange(settings.copy(wanweiRecipeAppKey = "", recipeApiAppId = "", recipeApiSecret = ""))
                     }
                 }
             }
@@ -499,8 +635,8 @@ private fun DeveloperEntryCard(enabled: Boolean, onClick: () -> Unit) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("开发者模式", color = ChiDianColors.Ink, fontWeight = FontWeight.Black)
                 Text(
-                    if (enabled) "已开启：App 将直连 AI、高德和万维易源"
-                    else "已关闭：继续通过本地后端代理",
+                    if (enabled) "已开启：App 将直连 AI、高德和菜谱 API"
+                    else "已关闭：继续通过线上后端服务",
                     color = ChiDianColors.Muted,
                     fontSize = 12.sp,
                     lineHeight = 17.sp
@@ -786,11 +922,19 @@ private fun ClearTextButton(text: String, enabled: Boolean, onClick: () -> Unit)
 }
 
 private fun savedItemsFor(state: AppUiState): List<SavedItem> {
-    return buildList {
+    val ordered = state.savedOrder.filter { item ->
+        when (item) {
+            is SavedItem.Meal -> item.id in state.savedMealIds && findSavedMealPlan(item.id, state) != null
+            is SavedItem.RecipeItem -> item.id in state.savedRecipeIds && findSavedRecipe(item.id, state) != null
+            is SavedItem.RestaurantItem -> item.id in state.savedRestaurantIds && findSavedRestaurant(item.id, state) != null
+        }
+    }
+    val missing = buildList {
         state.savedMealIds.mapNotNull { id -> findSavedMealPlan(id, state) }.forEach { add(SavedItem.Meal(it.id)) }
         state.savedRecipeIds.mapNotNull { id -> findSavedRecipe(id, state) }.forEach { add(SavedItem.RecipeItem(it.id)) }
         state.savedRestaurantIds.mapNotNull { id -> findSavedRestaurant(id, state) }.forEach { add(SavedItem.RestaurantItem(it.id)) }
-    }.filter { item ->
+    }.filterNot { candidate -> ordered.any { it::class == candidate::class && it.id == candidate.id } }
+    return (ordered + missing).filter { item ->
         when (state.savedFilter) {
             SavedFilter.All -> true
             SavedFilter.Cook -> item is SavedItem.Meal || item is SavedItem.RecipeItem
@@ -800,17 +944,19 @@ private fun savedItemsFor(state: AppUiState): List<SavedItem> {
 }
 
 private fun findSavedMealPlan(id: String, state: AppUiState): MealPlan? {
-    return (state.mealPlans + MockData.mealPlans).firstOrNull { it.id == id }
+    return (state.savedMealPlanCache + state.mealPlans + MockData.mealPlans)
+        .distinctBy { it.id }
+        .firstOrNull { it.id == id }
 }
 
 private fun findSavedRecipe(id: String, state: AppUiState): Recipe? {
-    return (state.recipes + state.recipeCache + MockData.recipes)
+    return (state.savedRecipeCache + state.recipes + state.recipeCache + MockData.recipes)
         .distinctBy { it.id }
         .firstOrNull { it.id == id }
 }
 
 private fun findSavedRestaurant(id: String, state: AppUiState): Restaurant? {
-    return (state.restaurants + state.restaurantCache + MockData.restaurants)
+    return (state.savedRestaurantCache + state.restaurants + state.restaurantCache + MockData.restaurants)
         .distinctBy { it.id }
         .firstOrNull { it.id == id }
 }

@@ -2,6 +2,7 @@ package com.dinnerplan.chidian
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class WanweiRecipeMapperTest {
@@ -120,5 +121,141 @@ class WanweiRecipeMapperTest {
         assertEquals("https://img.example/tomato-egg.jpg", recipe.coverUrl)
         assertEquals(listOf("先把鸡蛋炒熟盛出。", "下番茄炒出汁。"), recipe.steps)
         assertEquals(listOf("鸡蛋", "番茄"), recipe.ingredients.map { it.name })
+    }
+
+    @Test
+    fun parsesMxnzpCookbookOfficialSearchResponse() {
+        val recipes = WanweiRecipeApiClient().parseMxnzpResponse(
+            """
+            {
+              "code": 1,
+              "msg": "success",
+              "data": {
+                "total": 1,
+                "list": [
+                  {
+                    "id": "mx_1001",
+                    "name": "清蒸鲈鱼",
+                    "desc": "适合晚餐的清淡鱼菜。",
+                    "cover": "https://img.example/fish.jpg",
+                    "ingredient": [
+                      { "name": "鲈鱼" },
+                      { "name": "葱姜" }
+                    ],
+                    "tips": "蒸制时间按鱼大小调整。"
+                  }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        val recipe = recipes.single()
+
+        assertEquals("mxnzp_mx_1001", recipe.id)
+        assertEquals("清蒸鲈鱼", recipe.name)
+        assertEquals("mxnzp", recipe.source)
+        assertEquals("https://img.example/fish.jpg", recipe.coverUrl)
+        assertEquals(emptyList(), recipe.stepImageUrls)
+        assertEquals(listOf("根据食材准备并按家常做法烹饪。"), recipe.steps)
+        assertEquals(listOf("鲈鱼", "葱姜"), recipe.ingredients.map { it.name })
+    }
+
+    @Test
+    fun parsesMxnzpCookbookDetailResponseWithInstructionsAndStepImages() {
+        val recipe = WanweiRecipeApiClient().parseMxnzpDetailResponse(
+            """
+            {
+              "code": 1,
+              "msg": "success",
+              "data": {
+                "id": "100086",
+                "name": "干锅花菜",
+                "tips": "花菜不要炒太久。",
+                "difficulty": "简单",
+                "duration": "15分钟左右",
+                "ingredient": [
+                  { "name": "花菜", "amount": "半个" },
+                  { "name": "五花肉", "amount": "200克" }
+                ],
+                "instruction": [
+                  { "text": "花菜洗净掰小朵。", "url": "https://img.example/step1.jpg", "step": "第1步" },
+                  { "text": "下锅翻炒调味。", "url": "", "step": "第2步" }
+                ]
+              }
+            }
+            """.trimIndent()
+        )
+
+        assertEquals("mxnzp_100086", recipe.id)
+        assertEquals("干锅花菜", recipe.name)
+        assertEquals("简单", recipe.difficulty)
+        assertEquals("15分钟左右", recipe.cookTime)
+        assertEquals("花菜不要炒太久。", recipe.tips)
+        assertEquals(listOf("花菜", "五花肉"), recipe.ingredients.map { it.name })
+        assertEquals(listOf("半个", "200克"), recipe.ingredients.map { it.amount })
+        assertEquals(listOf("花菜洗净掰小朵。", "下锅翻炒调味。"), recipe.steps)
+        assertEquals(listOf("https://img.example/step1.jpg", ""), recipe.stepImageUrls)
+    }
+
+    @Test
+    fun mxnzpRequestUsesOnlyOfficialQueryParameters() {
+        val source = listOf(
+            java.nio.file.Path.of("app/src/main/java/com/dinnerplan/chidian/WanweiRecipeApiClient.kt"),
+            java.nio.file.Path.of("src/main/java/com/dinnerplan/chidian/WanweiRecipeApiClient.kt")
+        )
+            .first { it.toFile().exists() }
+            .toFile()
+            .readText()
+        val mxnzpSearchBlock = source.substringAfter("private suspend fun searchMxnzpRecipes")
+            .substringBefore("private suspend fun searchCustomRecipes")
+
+        assertTrue("parameter(\"keyword\", query)" in mxnzpSearchBlock)
+        assertTrue("parameter(\"page\", page)" in mxnzpSearchBlock)
+        assertTrue("parameter(\"app_id\", appId.trim())" in mxnzpSearchBlock)
+        assertTrue("parameter(\"app_secret\", appSecret.trim())" in mxnzpSearchBlock)
+        assertFalse("keyWord" in mxnzpSearchBlock)
+        assertFalse("parameter(\"word\"" in mxnzpSearchBlock)
+        assertFalse("parameter(\"name\"" in mxnzpSearchBlock)
+        assertFalse("parameter(\"num\"" in mxnzpSearchBlock)
+        assertFalse("parameter(\"size\"" in mxnzpSearchBlock)
+        assertFalse("parameter(\"limit\"" in mxnzpSearchBlock)
+    }
+
+    @Test
+    fun mxnzpSearchDoesNotFetchPaidDetailImages() {
+        val source = listOf(
+            java.nio.file.Path.of("app/src/main/java/com/dinnerplan/chidian/WanweiRecipeApiClient.kt"),
+            java.nio.file.Path.of("src/main/java/com/dinnerplan/chidian/WanweiRecipeApiClient.kt")
+        )
+            .first { it.toFile().exists() }
+            .toFile()
+            .readText()
+        val mxnzpSearchBlock = source.substringAfter("private suspend fun searchMxnzpRecipes")
+            .substringBefore("private suspend fun searchCustomRecipes")
+
+        assertFalse("enrichMxnzpRecipes" in mxnzpSearchBlock)
+        assertFalse("requestMxnzpRecipeDetail" in mxnzpSearchBlock)
+        assertFalse("MXNZP_RECIPE_DETAIL_URL" in mxnzpSearchBlock)
+    }
+
+    @Test
+    fun mxnzpDetailsRequestUsesOfficialIdParameters() {
+        val source = listOf(
+            java.nio.file.Path.of("app/src/main/java/com/dinnerplan/chidian/WanweiRecipeApiClient.kt"),
+            java.nio.file.Path.of("src/main/java/com/dinnerplan/chidian/WanweiRecipeApiClient.kt")
+        )
+            .first { it.toFile().exists() }
+            .toFile()
+            .readText()
+        val detailBlock = source.substringAfter("private suspend fun requestMxnzpRecipeDetail")
+            .substringBefore("internal fun parseMxnzpResponse")
+
+        assertTrue("MXNZP_RECIPE_DETAIL_URL" in source)
+        assertTrue("parameter(\"id\", id)" in detailBlock)
+        assertTrue("parameter(\"app_id\", appId.trim())" in detailBlock)
+        assertTrue("parameter(\"app_secret\", appSecret.trim())" in detailBlock)
+        assertFalse("keyword" in detailBlock)
+        assertFalse("page" in detailBlock)
     }
 }

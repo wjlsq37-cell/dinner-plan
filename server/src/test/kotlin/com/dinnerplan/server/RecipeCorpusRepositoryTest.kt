@@ -55,6 +55,65 @@ class RecipeCorpusRepositoryTest {
     }
 
     @Test
+    fun databaseSearchSplitsSpacesAndPunctuationIntoUsefulTerms() {
+        val dir = createTempDirectory("recipe-corpus-term-test")
+        val source = dir.resolve("recipes.jsonl")
+        val db = dir.resolve("recipes.sqlite")
+        source.writeText(
+            """
+            {"name":"番茄炒鸡蛋","dish":"家常菜","description":"晚餐快手下饭菜。","recipeIngredient":["鸡蛋","番茄","葱花"],"recipeInstructions":["鸡蛋炒熟","番茄炒出汁","合炒调味"],"author":"me","keywords":["番茄","鸡蛋","晚餐"]}
+            {"name":"清炒西兰花","dish":"素菜","description":"清淡蔬菜。","recipeIngredient":["西兰花"],"recipeInstructions":["焯水","清炒"],"author":"me","keywords":["清淡"]}
+            """.trimIndent() + "\n",
+            Charsets.UTF_8
+        )
+
+        RecipeCorpusImporter().importJsonl(source, db)
+        val repository = RecipeCorpusRepository(db)
+
+        assertEquals("番茄炒鸡蛋", repository.search("番茄 鸡蛋", limit = 10).recipes.first().name)
+        assertEquals("番茄炒鸡蛋", repository.search("番茄、鸡蛋/晚餐", limit = 10).recipes.first().name)
+    }
+
+    @Test
+    fun databaseSearchCompactsFullWidthSymbolsBeforeMatching() {
+        val dir = createTempDirectory("recipe-corpus-compact-test")
+        val source = dir.resolve("recipes.jsonl")
+        val db = dir.resolve("recipes.sqlite")
+        source.writeText(
+            """
+            {"name":"abcdef","dish":"test","description":"compact target","recipeIngredient":["abcdef"],"recipeInstructions":["cook"],"author":"me","keywords":["abcdef"]}
+            {"name":"zzzzzz","dish":"test","description":"higher quality distractor","recipeIngredient":["many","complete","items"],"recipeInstructions":["one","two","three","four"],"author":"me","keywords":["other"]}
+            """.trimIndent() + "\n",
+            Charsets.UTF_8
+        )
+
+        RecipeCorpusImporter().importJsonl(source, db)
+        val result = RecipeCorpusRepository(db).search("abc\uFF0Fdef", limit = 10)
+
+        assertTrue(result.recipes.isNotEmpty())
+        assertEquals("abcdef", result.recipes.first().name)
+    }
+
+    @Test
+    fun databaseSearchWithOnlySymbolsFallsBackToTopRatedRecipes() {
+        val dir = createTempDirectory("recipe-corpus-symbol-test")
+        val source = dir.resolve("recipes.jsonl")
+        val db = dir.resolve("recipes.sqlite")
+        source.writeText(
+            """
+            {"name":"番茄炒鸡蛋","dish":"家常菜","description":"晚餐快手下饭菜。","recipeIngredient":["鸡蛋","番茄","葱花"],"recipeInstructions":["鸡蛋炒熟","番茄炒出汁","合炒调味"],"author":"me","keywords":["番茄","鸡蛋","晚餐"]}
+            """.trimIndent() + "\n",
+            Charsets.UTF_8
+        )
+
+        RecipeCorpusImporter().importJsonl(source, db)
+        val search = RecipeCorpusRepository(db).search("  、 / ； ： （）  ", limit = 10)
+
+        assertTrue(search.recipes.isNotEmpty())
+        assertEquals("番茄炒鸡蛋", search.recipes.first().name)
+    }
+
+    @Test
     fun recipeByIdReturnsFullDatabaseRecipe() {
         val dir = createTempDirectory("recipe-corpus-detail-test")
         val source = dir.resolve("recipes.jsonl")
