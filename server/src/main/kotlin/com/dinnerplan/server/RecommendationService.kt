@@ -79,12 +79,22 @@ class RecommendationService(
     }
 
     private fun recommendCookFromDatabase(request: RecommendationRequest): CookRecommendationResponse {
-        val corpusSearch = recipeCorpusRepository.search(request.query, limit = 48)
-        val filteredRecipes = RecipeDatabaseFilter.filterAndSort(
-            recipes = corpusSearch.recipes,
-            query = request.query,
-            preferences = request.preferences
-        )
+        val corpusSearch = if (request.broadSearch) {
+            recipeCorpusRepository.randomSample(limit = 48)
+        } else {
+            recipeCorpusRepository.search(request.query, limit = 48)
+        }
+        val filteredRecipes = if (request.broadSearch) {
+            corpusSearch.recipes.filterNot { recipe ->
+                RecipeDatabaseFilter.containsAvoidTerm(recipe, request.preferences.avoids)
+            }
+        } else {
+            RecipeDatabaseFilter.filterAndSort(
+                recipes = corpusSearch.recipes,
+                query = request.query,
+                preferences = request.preferences
+            )
+        }
         if (filteredRecipes.isNotEmpty()) {
             val comboIntent = isComboIntent(request, aiIntent = null)
             val mealPlans = if (comboIntent) {
@@ -94,11 +104,32 @@ class RecommendationService(
             }
             return CookRecommendationResponse(
                 intent = if (comboIntent) RecommendationModeDto.RECIPE_COMBO else RecommendationModeDto.RECIPE_SINGLE,
-                summary = "已从本地菜谱库按“${request.query}”搜索，结果按星级优先排序。",
+                summary = if (request.broadSearch) {
+                    "已从本地菜谱库随机扩大候选范围，并避开你的忌口。"
+                } else {
+                    "已从本地菜谱库按“${request.query}”搜索，结果按星级优先排序。"
+                },
                 mealPlans = mealPlans,
                 recipes = filteredRecipes,
                 source = CookSourceDto.DATABASE,
                 totalMatches = filteredRecipes.size
+            )
+        }
+
+        if (request.broadSearch) {
+            val corpusReady = recipeCorpusRepository.status().ready
+            return CookRecommendationResponse(
+                intent = request.mode,
+                summary = "菜谱数据库暂时没有可用候选。",
+                mealPlans = emptyList(),
+                recipes = emptyList(),
+                fallbackReason = if (corpusReady) {
+                    "菜谱数据库中暂无符合忌口条件的随机候选，请调整忌口后再试。"
+                } else {
+                    "菜谱数据库尚未导入或当前不可用，请检查数据库服务。"
+                },
+                source = CookSourceDto.DATABASE,
+                totalMatches = 0
             )
         }
 
@@ -107,7 +138,8 @@ class RecommendationService(
             aiIntent = null,
             source = CookSourceDto.DATABASE,
             fallbackReason = if (recipeCorpusRepository.status().ready) {
-                "本地菜谱库未找到匹配结果，已使用基础菜谱库推荐。"
+                if (request.broadSearch) "本地菜谱库暂无可用随机候选，已使用基础菜谱库推荐。"
+                else "本地菜谱库未找到匹配结果，已使用基础菜谱库推荐。"
             } else {
                 "本地菜谱库尚未导入，已使用基础菜谱库推荐。"
             }
@@ -193,8 +225,12 @@ class RecommendationService(
     suspend fun recommendRestaurants(request: RecommendationRequest): RestaurantRecommendationResponse {
         val radius = parseRadiusMeters(request.query, request.preferences.defaultDistanceKm)
         val limit = request.preferences.restaurantResultLimit.coerceIn(1, 50)
-        val keywordPlan = aiService.parseRestaurantKeywordPlan(request.query)
-            ?: RestaurantKeywordAiParser.fallbackPlan(request.query)
+        val keywordPlan = if (request.broadSearch) {
+            broadRestaurantKeywordPlan()
+        } else {
+            aiService.parseRestaurantKeywordPlan(request.query)
+                ?: RestaurantKeywordAiParser.fallbackPlan(request.query)
+        }
         val result = amapService.searchRestaurantCandidates(
             plan = keywordPlan,
             location = request.location,
@@ -247,18 +283,26 @@ class RecommendationService(
         val selected = selectCorpusDishes(recipes, meatCount, vegCount, soupCount, includeStaple)
         return MealPlanDto(
             id = "corpus_meal_${request.query.hashCode().toString().replace("-", "n")}",
-            title = "本地菜谱库 $structure",
+            title = if (request.broadSearch) "随机推荐组合菜单" else "本地菜谱库 $structure",
             structure = structure,
             cookTime = estimateCookTime(selected.size, request.query.contains("不辣") || request.query.contains("清淡")),
             servings = "2-3 人份",
             coverUrl = recipes.firstOrNull()?.coverUrl.orEmpty(),
             tags = buildList {
                 add("本地菜谱库")
-                add("${numberText(meatCount)}荤${numberText(vegCount)}素")
-                if (soupCount > 0) add("一汤")
-                if (includeStaple) add("主食")
+                if (request.broadSearch) {
+                    add("随机推荐")
+                } else {
+                    add("${numberText(meatCount)}荤${numberText(vegCount)}素")
+                    if (soupCount > 0) add("一汤")
+                    if (includeStaple) add("主食")
+                }
             },
-            reason = "从本地菜谱库中按“${request.query}”匹配菜品，并优先选择星级更高的菜谱组成菜单。",
+            reason = if (request.broadSearch) {
+                "从本地菜谱库中扩大候选范围随机组装，并避开你的忌口。"
+            } else {
+                "从本地菜谱库中按“${request.query}”匹配菜品，并优先选择星级更高的菜谱组成菜单。"
+            },
             dishes = selected,
             shoppingList = recipes.flatMap { recipe -> recipe.ingredients.take(4).map { it.name } }.distinct().take(24),
             timeline = listOf(

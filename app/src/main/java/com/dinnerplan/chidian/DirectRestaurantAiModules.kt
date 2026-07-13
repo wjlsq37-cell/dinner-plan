@@ -27,6 +27,16 @@ internal data class DirectRestaurantKeywordPlan(
     }
 }
 
+internal fun broadDirectRestaurantKeywordPlan(): DirectRestaurantKeywordPlan {
+    val terms = broadRestaurantSearchTerms()
+    return DirectRestaurantKeywordPlan(
+        summary = "随机扩大附近餐厅候选范围",
+        keywords = terms,
+        preferMatch = terms,
+        searchStrategy = "separate"
+    ).normalized("")
+}
+
 @Serializable
 internal data class DirectRestaurantExcluded(
     val id: String = "",
@@ -313,6 +323,10 @@ private fun List<String>.cleanTerms(): List<String> {
         .map { it.trim() }
         .filter { it.isNotBlank() }
         .distinct()
+}
+
+private fun broadRestaurantSearchTerms(): List<String> {
+    return listOf("餐厅", "中餐", "小吃", "快餐", "面馆", "粉面", "火锅", "烧烤", "日料", "西餐", "甜品", "咖啡")
 }
 
 private fun String.splitTerms(): List<String> {

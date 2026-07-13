@@ -62,6 +62,7 @@ import com.dinnerplan.chidian.ui.components.EmptyFoodState
 import com.dinnerplan.chidian.ui.components.FoodCard
 import com.dinnerplan.chidian.ui.components.FoodChip
 import com.dinnerplan.chidian.ui.components.FoodModeChip
+import com.dinnerplan.chidian.ui.components.FoodTone
 import com.dinnerplan.chidian.ui.components.FoodScreenHeader
 import com.dinnerplan.chidian.ui.components.FoodSearchPanel
 import com.dinnerplan.chidian.ui.components.FoodSegmentedButtons
@@ -268,10 +269,10 @@ private fun CookLoadingStatus(
                 onClick = onCancelSearch,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = ChiDianColors.SurfaceWarm,
-                    contentColor = ChiDianColors.TomatoDark
+                    containerColor = ChiDianColors.ActionPrimarySoft,
+                    contentColor = ChiDianColors.ActionPrimary
                 ),
-                border = BorderStroke(1.dp, ChiDianColors.Line),
+                border = BorderStroke(1.dp, ChiDianColors.BorderSubtle),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text("取消制作")
@@ -398,7 +399,7 @@ private fun DishList(dishes: List<DishItem>) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(ChiDianColors.SurfaceWarm)
+            .background(ChiDianColors.SurfaceSubtle)
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -411,7 +412,7 @@ private fun DishList(dishes: List<DishItem>) {
 @Composable
 private fun DishLine(dish: DishItem) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-        FoodChip(text = dish.badge.label, selected = true, green = dish.badge == DishBadge.Veg)
+        FoodChip(text = dish.badge.label, selected = true, tone = FoodTone.Food)
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = "${dish.course} · ${dish.name}",
@@ -445,10 +446,10 @@ private fun ActionRow(
             onClick = onPrimary,
             modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(
-                containerColor = ChiDianColors.SurfaceWarm,
-                contentColor = ChiDianColors.TomatoDark
+                containerColor = ChiDianColors.ActionPrimarySoft,
+                contentColor = ChiDianColors.ActionPrimary
             ),
-            border = BorderStroke(1.dp, ChiDianColors.Line),
+            border = BorderStroke(1.dp, ChiDianColors.BorderSubtle),
             shape = RoundedCornerShape(8.dp)
         ) {
             Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -459,10 +460,10 @@ private fun ActionRow(
             onClick = onSave,
             modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (isSaved) ChiDianColors.Tomato else Color.White,
+                containerColor = if (isSaved) ChiDianColors.ActionPrimary else Color.White,
                 contentColor = if (isSaved) Color.White else ChiDianColors.Ink
             ),
-            border = if (isSaved) null else BorderStroke(1.dp, ChiDianColors.Line),
+            border = if (isSaved) null else BorderStroke(1.dp, ChiDianColors.BorderSubtle),
             shape = RoundedCornerShape(8.dp)
         ) {
             Icon(
@@ -477,13 +478,13 @@ private fun ActionRow(
 }
 
 @Composable
-private fun FoodTagRow(tags: List<String>, green: Boolean = false) {
+private fun FoodTagRow(tags: List<String>, tone: FoodTone = FoodTone.Neutral) {
     Row(
         modifier = Modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
         tags.filter { it.isNotBlank() }.forEach { tag ->
-            FoodChip(text = tag, green = green)
+            FoodChip(text = tag, tone = tone)
         }
     }
 }

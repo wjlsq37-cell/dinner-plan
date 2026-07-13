@@ -111,6 +111,72 @@ class ApplicationTest {
     }
 
     @Test
+    fun broadDatabaseCookRecommendationSamplesCorpusWithoutDinnerKeyword() = testApplication {
+        val db = importedCorpus(
+            """
+            {"name":"葱油鸡","dish":"家常菜","description":"鲜香冷盘。","recipeIngredient":["鸡腿","小葱"],"recipeInstructions":["鸡腿煮熟","淋葱油"],"author":"me","keywords":["鸡肉","家常菜"]}
+            {"name":"香煎豆腐","dish":"家常菜","description":"外焦里嫩。","recipeIngredient":["豆腐","鸡蛋"],"recipeInstructions":["豆腐裹蛋液","煎至金黄"],"author":"me","keywords":["豆腐","素菜"]}
+            {"name":"鲜虾丝瓜汤","dish":"汤羹","description":"清爽汤品。","recipeIngredient":["虾","丝瓜"],"recipeInstructions":["虾仁处理","丝瓜煮汤"],"author":"me","keywords":["海鲜","汤"]}
+            """.trimIndent()
+        )
+        application { module(noSecretConfig.copy(recipeCorpusDbPath = db.toString())) }
+        val client = createClient {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true })
+            }
+        }
+
+        val response = client.post("/api/recommend/cook") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                RecommendationRequest(
+                    query = "",
+                    mode = RecommendationModeDto.RECIPE_SINGLE,
+                    cookSource = CookSourceDto.DATABASE,
+                    preferences = com.dinnerplan.shared.UserPreferenceDto(avoids = listOf("海鲜")),
+                    broadSearch = true
+                )
+            )
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.body<CookRecommendationResponse>()
+        assertTrue(body.recipes.map { it.name }.containsAll(listOf("葱油鸡", "香煎豆腐")))
+        assertFalse(body.recipes.any { it.name == "鲜虾丝瓜汤" })
+        assertTrue(body.summary.contains("随机"))
+    }
+
+    @Test
+    fun broadDatabaseCookRecommendationDoesNotReturnSeedRecipesWhenCorpusIsMissing() = testApplication {
+        val missingDb = createTempDirectory("missing-recipe-corpus").resolve("recipes.sqlite")
+        application { module(noSecretConfig.copy(recipeCorpusDbPath = missingDb.toString())) }
+        val client = createClient {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true })
+            }
+        }
+
+        val response = client.post("/api/recommend/cook") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                RecommendationRequest(
+                    query = "",
+                    mode = RecommendationModeDto.RECIPE_SINGLE,
+                    cookSource = CookSourceDto.DATABASE,
+                    broadSearch = true
+                )
+            )
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.body<CookRecommendationResponse>()
+        assertTrue(body.recipes.isEmpty())
+        assertTrue(body.mealPlans.isEmpty())
+        assertEquals(0, body.totalMatches)
+        assertNotNull(body.fallbackReason)
+    }
+
+    @Test
     fun aiGeneratedCookRecommendationFallsBackClearlyWhenAiUnavailable() = testApplication {
         val db = importedCorpus(
             """{"name":"番茄炒鸡蛋","dish":"番茄炒鸡蛋","description":"家常下饭菜。","recipeIngredient":["鸡蛋","番茄"],"recipeInstructions":["炒鸡蛋","炒番茄","合炒调味"],"author":"me","keywords":["鸡蛋","家常菜"]}"""
@@ -198,6 +264,32 @@ class ApplicationTest {
         val response = client.post("/api/recommend/restaurant") {
             contentType(ContentType.Application.Json)
             setBody(RecommendationRequest("附近 5km 牛肉面", RecommendationModeDto.RESTAURANT))
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val body = response.body<RestaurantRecommendationResponse>()
+        assertTrue(body.restaurants.isEmpty())
+        assertNotNull(body.fallbackReason)
+    }
+
+    @Test
+    fun broadRestaurantRecommendationAllowsEmptyQuery() = testApplication {
+        application { module(noSecretConfig) }
+        val client = createClient {
+            install(ContentNegotiation) {
+                json(Json { ignoreUnknownKeys = true })
+            }
+        }
+
+        val response = client.post("/api/recommend/restaurant") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                RecommendationRequest(
+                    query = "",
+                    mode = RecommendationModeDto.RESTAURANT,
+                    broadSearch = true
+                )
+            )
         }
 
         assertEquals(HttpStatusCode.OK, response.status)

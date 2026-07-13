@@ -81,7 +81,7 @@ fun Application.module(config: AppConfig = AppConfig.load()) {
 
         post("/api/recommend/cook") {
             val request = call.receive<RecommendationRequest>()
-            if (request.query.isBlank()) {
+            if (request.query.isBlank() && !request.broadSearch) {
                 call.respond(HttpStatusCode.BadRequest, mapOf("error" to "query is required"))
                 return@post
             }
@@ -121,7 +121,7 @@ fun Application.module(config: AppConfig = AppConfig.load()) {
 
         post("/api/recommend/restaurant") {
             val request = call.receive<RecommendationRequest>()
-            if (request.query.isBlank()) {
+            if (request.query.isBlank() && !request.broadSearch) {
                 call.respond(HttpStatusCode.BadRequest, mapOf("error" to "query is required"))
                 return@post
             }

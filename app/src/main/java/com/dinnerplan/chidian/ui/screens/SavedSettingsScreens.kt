@@ -78,6 +78,7 @@ import com.dinnerplan.chidian.toggleList
 import com.dinnerplan.chidian.ui.components.EmptyFoodState
 import com.dinnerplan.chidian.ui.components.FoodCard
 import com.dinnerplan.chidian.ui.components.FoodChip
+import com.dinnerplan.chidian.ui.components.FoodTone
 import com.dinnerplan.chidian.ui.components.FoodInfoTile
 import com.dinnerplan.chidian.ui.components.FoodTopBar
 import com.dinnerplan.chidian.ui.components.StaggeredVisible
@@ -629,8 +630,8 @@ internal fun DeveloperSettingsScreen(
 private fun DeveloperEntryCard(enabled: Boolean, onClick: () -> Unit) {
     FoodCard(modifier = Modifier.clickable(onClick = onClick)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = ChiDianColors.SurfaceWarm, shape = RoundedCornerShape(999.dp)) {
-                Icon(Icons.Filled.Tune, contentDescription = null, tint = ChiDianColors.Tomato, modifier = Modifier.padding(8.dp).size(20.dp))
+            Surface(color = ChiDianColors.ActionPrimarySoft, shape = RoundedCornerShape(999.dp)) {
+                Icon(Icons.Filled.Tune, contentDescription = null, tint = ChiDianColors.ActionPrimary, modifier = Modifier.padding(8.dp).size(20.dp))
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text("开发者模式", color = ChiDianColors.Ink, fontWeight = FontWeight.Black)
@@ -662,9 +663,9 @@ private fun SavedFilterTabs(selected: SavedFilter, onSelect: (SavedFilter) -> Un
 private fun SavedFilterButton(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
     Surface(
         modifier = modifier.clickable(onClick = onClick),
-        color = if (selected) ChiDianColors.Tomato else ChiDianColors.SurfaceWarm,
+        color = if (selected) ChiDianColors.ActionPrimary else ChiDianColors.SurfaceSubtle,
         shape = RoundedCornerShape(8.dp),
-        border = if (selected) null else BorderStroke(1.dp, ChiDianColors.Line)
+        border = if (selected) null else BorderStroke(1.dp, ChiDianColors.BorderSubtle)
     ) {
         Text(
             text = text,
@@ -711,7 +712,7 @@ private fun SavedResultCard(
                 title = restaurant.name,
                 subtitle = "${restaurant.distance} · ${restaurant.price}",
                 tags = restaurant.tags.take(3),
-                green = true,
+                tone = FoodTone.Location,
                 onClick = { onRestaurant(restaurant.id) }
             )
         }
@@ -724,12 +725,12 @@ private fun SavedMiniCard(
     title: String,
     subtitle: String,
     tags: List<String>,
-    green: Boolean = false,
+    tone: FoodTone = FoodTone.Food,
     onClick: () -> Unit
 ) {
     FoodCard(modifier = Modifier.clickable(onClick = onClick)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            SavedThumb(imageUrl = imageUrl, description = title, green = green)
+            SavedThumb(imageUrl = imageUrl, description = title, tone = tone)
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(title, color = ChiDianColors.Ink, fontSize = 16.sp, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(subtitle, color = ChiDianColors.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -738,17 +739,17 @@ private fun SavedMiniCard(
                     horizontalArrangement = Arrangement.spacedBy(7.dp)
                 ) {
                     tags.filter { it.isNotBlank() }.forEach { tag ->
-                        FoodChip(text = tag, green = green)
+                        FoodChip(text = tag, tone = FoodTone.Neutral)
                     }
                 }
             }
-            Icon(Icons.Filled.Favorite, contentDescription = null, tint = if (green) ChiDianColors.MintDark else ChiDianColors.Tomato)
+            Icon(Icons.Filled.Favorite, contentDescription = null, tint = ChiDianColors.ActionPrimary)
         }
     }
 }
 
 @Composable
-private fun SavedThumb(imageUrl: String, description: String, green: Boolean) {
+private fun SavedThumb(imageUrl: String, description: String, tone: FoodTone) {
     if (imageUrl.isNotBlank()) {
         AsyncImage(
             model = imageUrl,
@@ -761,11 +762,15 @@ private fun SavedThumb(imageUrl: String, description: String, green: Boolean) {
     } else {
         Surface(
             modifier = Modifier.size(82.dp),
-            color = if (green) ChiDianColors.Mint.copy(alpha = 0.18f) else ChiDianColors.SurfaceWarm,
+            color = if (tone == FoodTone.Location) ChiDianColors.LocationAccentSoft else ChiDianColors.SurfaceSubtle,
             shape = RoundedCornerShape(8.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Restaurant, contentDescription = null, tint = if (green) ChiDianColors.MintDark else ChiDianColors.Tomato)
+                Icon(
+                    Icons.Filled.Restaurant,
+                    contentDescription = null,
+                    tint = if (tone == FoodTone.Location) ChiDianColors.LocationAccent else ChiDianColors.ActionPrimary
+                )
             }
         }
     }
@@ -792,10 +797,10 @@ private fun PreferenceCard(
             Text(title, color = ChiDianColors.Ink, fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
             if (isEditable) {
                 IconButton(onClick = onAddMode) {
-                    Icon(Icons.Filled.Add, contentDescription = "新增", tint = ChiDianColors.Tomato)
+                    Icon(Icons.Filled.Add, contentDescription = "新增", tint = ChiDianColors.ActionPrimary)
                 }
                 IconButton(onClick = onEditMode) {
-                    Icon(Icons.Filled.Delete, contentDescription = "编辑", tint = if (isEditing) ChiDianColors.Tomato else ChiDianColors.Muted)
+                    Icon(Icons.Filled.Delete, contentDescription = "编辑", tint = if (isEditing) ChiDianColors.ActionPrimary else ChiDianColors.Muted)
                 }
             }
         }
@@ -818,7 +823,7 @@ private fun PreferenceCard(
                 )
                 Button(
                     onClick = onCreate,
-                    colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.Tomato),
+                    colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.ActionPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text("加入")
@@ -846,9 +851,9 @@ private fun PreferenceTagRow(
                 modifier = Modifier.clickable {
                     if (isEditing) onDelete(option) else onToggle(option)
                 },
-                color = if (isSelected) ChiDianColors.Tomato else ChiDianColors.SurfaceWarm,
+                color = if (isSelected) ChiDianColors.ActionPrimary else ChiDianColors.SurfaceSubtle,
                 shape = RoundedCornerShape(999.dp),
-                border = if (isSelected) null else BorderStroke(1.dp, ChiDianColors.Line)
+                border = if (isSelected) null else BorderStroke(1.dp, ChiDianColors.BorderSubtle)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
@@ -902,11 +907,11 @@ private fun SectionTitle(
     enabled: Boolean = true
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Surface(color = ChiDianColors.SurfaceWarm, shape = RoundedCornerShape(999.dp)) {
+        Surface(color = ChiDianColors.ActionPrimarySoft, shape = RoundedCornerShape(999.dp)) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (enabled) ChiDianColors.Tomato else ChiDianColors.Muted,
+                tint = if (enabled) ChiDianColors.ActionPrimary else ChiDianColors.Muted,
                 modifier = Modifier.padding(7.dp).size(17.dp)
             )
         }
@@ -917,7 +922,7 @@ private fun SectionTitle(
 @Composable
 private fun ClearTextButton(text: String, enabled: Boolean, onClick: () -> Unit) {
     TextButton(onClick = onClick, enabled = enabled) {
-        Text(text, color = if (enabled) ChiDianColors.TomatoDark else ChiDianColors.Muted)
+        Text(text, color = if (enabled) ChiDianColors.ActionPrimary else ChiDianColors.Muted)
     }
 }
 

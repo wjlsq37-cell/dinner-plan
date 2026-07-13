@@ -49,6 +49,7 @@ class UiSurfaceAccessTest {
     fun homeDecisionCardUsesTimeAwareCopyAndDecisionAction() {
         val homeScreen = readProjectFile("app/src/main/java/com/dinnerplan/chidian/ui/screens/HomeScreen.kt")
         val mainActivity = readProjectFile("app/src/main/java/com/dinnerplan/chidian/MainActivity.kt")
+        val apiModels = readProjectFile("shared/src/main/kotlin/com/dinnerplan/shared/ApiModels.kt")
 
         assertTrue(decisionGreetingForHour(8).contains("早"))
         assertTrue(decisionGreetingForHour(12).contains("午"))
@@ -83,6 +84,15 @@ class UiSurfaceAccessTest {
         assertFalse("val restaurant = MockData.restaurants.first()" in homeScreen)
         assertTrue("loadDecisionCandidates(" in mainActivity)
         assertTrue("CookSourceMode.Database" in mainActivity.substringAfter("private suspend fun loadDecisionCandidates"))
+        assertTrue("val broadSearch: Boolean = false" in apiModels)
+        assertFalse("private const val DECISION_COOK_QUERY = \"晚餐\"" in mainActivity)
+        assertTrue("broadSearch = true" in mainActivity.substringAfter("private suspend fun fetchDecisionCookResult"))
+        assertFalse("broadSearch = true" in mainActivity.substringAfter("fun refreshCookRecommendations()").substringBefore("fun cancelCookRecommendations()"))
+        assertFalse("private const val DECISION_RESTAURANT_QUERY = \"餐厅\"" in mainActivity)
+        val decisionRestaurantBody = mainActivity.substringAfter("private suspend fun fetchDecisionRestaurantResult").substringBefore("private fun localMealPlans")
+        assertTrue("broadSearch = true" in decisionRestaurantBody)
+        val refreshRestaurantsBody = mainActivity.substringAfter("fun refreshRestaurants").substringBefore("fun autoRefreshNearbyRestaurantsIfEmpty")
+        assertFalse("broadSearch = true" in refreshRestaurantsBody)
         assertTrue("nearbyRestaurants(" in mainActivity.substringAfter("private suspend fun loadDecisionCandidates"))
         assertFalse("uiState.recipes + uiState.recipeCache + MockData.recipes" in mainActivity.substringAfter("fun decideWhatToEat()").substringBefore("LaunchedEffect"))
         assertFalse("navigate(Screen.RecipeDetail" in mainActivity.substringAfter("fun decideWhatToEat()").substringBefore("LaunchedEffect"))
@@ -91,6 +101,20 @@ class UiSurfaceAccessTest {
         assertTrue("Screen.MealPlanDetail" in mainActivity)
         assertTrue("Screen.RecipeDetail" in mainActivity)
         assertTrue("Screen.RestaurantDetail" in mainActivity)
+    }
+
+    @Test
+    fun homeDecisionOnlyUsesRecipesReturnedByAnApiSource() {
+        val builtIn = MockData.recipes.first()
+        val apiRecipe = builtIn.copy(id = "mxnzp_123", source = "mxnzp")
+
+        assertEquals(listOf(apiRecipe), apiDecisionRecipes(listOf(builtIn, apiRecipe)))
+
+        val mainActivity = readProjectFile("app/src/main/java/com/dinnerplan/chidian/MainActivity.kt")
+        val decisionBody = mainActivity.substringAfter("fun decideWhatToEat()")
+            .substringBefore("LaunchedEffect(settingsLoaded)")
+        assertTrue("apiDecisionRecipes(candidates.recipes)" in decisionBody)
+        assertFalse("candidates.recipes.ifEmpty { nextState.recipes + nextState.recipeCache }" in decisionBody)
     }
 
     @Test
@@ -112,7 +136,7 @@ class UiSurfaceAccessTest {
         assertTrue("delay(900)" in homeScreen)
         assertTrue("borderColor" in homeScreen)
         assertTrue("containerColor" in homeScreen)
-        assertTrue("ChiDianColors.Orange.copy(alpha = 0.45f)" in animatedCard)
+        assertTrue("ChiDianColors.ActionPrimary.copy(alpha = 0.35f)" in animatedCard)
         assertTrue("val containerColor = ChiDianColors.Surface" in animatedCard)
         assertFalse("ChiDianColors.Mint.copy" in animatedCard)
         assertFalse("lerp(ChiDianColors.Surface" in animatedCard)
@@ -144,6 +168,40 @@ class UiSurfaceAccessTest {
         assertFalse("NearbyLocationCard(" in nearbyScreen)
         assertFalse("NearbySortCard(" in nearbyScreen)
         assertFalse("OutlinedTextField(" in nearbyScreen)
+    }
+
+    @Test
+    fun themeConsistencyUsesRoleColorsInsteadOfGreenPageTheme() {
+        val mainActivity = readProjectFile("app/src/main/java/com/dinnerplan/chidian/MainActivity.kt")
+        val foodControls = readProjectFile("app/src/main/java/com/dinnerplan/chidian/ui/components/FoodControls.kt")
+        val homeScreen = readProjectFile("app/src/main/java/com/dinnerplan/chidian/ui/screens/HomeScreen.kt")
+        val nearbyScreen = readProjectFile("app/src/main/java/com/dinnerplan/chidian/ui/screens/NearbyRestaurantScreen.kt")
+        val detailScreens = readProjectFile("app/src/main/java/com/dinnerplan/chidian/ui/screens/DetailScreens.kt")
+        val savedScreen = readProjectFile("app/src/main/java/com/dinnerplan/chidian/ui/screens/SavedSettingsScreens.kt")
+
+        assertTrue("enum class FoodTone" in foodControls)
+        assertTrue("tone: FoodTone = FoodTone.Neutral" in foodControls)
+        assertFalse("green: Boolean" in foodControls)
+
+        assertFalse("private val Tomato" in mainActivity)
+        assertFalse("private val Muted" in mainActivity)
+        assertTrue("ChiDianColors.ActionPrimary" in mainActivity)
+
+        assertTrue("containerColor = ChiDianColors.ActionPrimary" in homeScreen)
+        assertTrue("tint = ChiDianColors.LocationAccent" in homeScreen)
+
+        assertTrue("containerColor = ChiDianColors.ActionPrimary" in nearbyScreen)
+        assertTrue("cursorBrush = SolidColor(ChiDianColors.LocationAccent)" in nearbyScreen)
+        assertTrue("color = ChiDianColors.LocationAccentSoft" in nearbyScreen)
+        assertTrue("tint = ChiDianColors.LocationAccent" in nearbyScreen)
+
+        assertFalse("Brush.linearGradient(listOf(ChiDianColors.MintDark, ChiDianColors.Mint))" in detailScreens)
+        assertFalse("green: Boolean" in detailScreens)
+        assertTrue("containerColor = ChiDianColors.ActionPrimary" in detailScreens)
+        assertTrue("tint = ChiDianColors.LocationAccent" in detailScreens)
+
+        assertFalse("green: Boolean" in savedScreen)
+        assertTrue("ChiDianColors.LocationAccentSoft" in savedScreen)
     }
 
     @Test

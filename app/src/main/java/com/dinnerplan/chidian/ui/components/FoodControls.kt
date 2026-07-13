@@ -39,14 +39,31 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dinnerplan.chidian.ui.theme.ChiDianColors
 
+enum class FoodTone {
+    Food,
+    Location,
+    Neutral,
+    Ai
+}
+
 @Composable
-fun FoodChip(text: String, selected: Boolean = false, green: Boolean = false, modifier: Modifier = Modifier) {
-    val activeColor = if (green) ChiDianColors.MintDark else ChiDianColors.Tomato
+fun FoodChip(
+    text: String,
+    selected: Boolean = false,
+    tone: FoodTone = FoodTone.Neutral,
+    modifier: Modifier = Modifier
+) {
+    val activeColor = when (tone) {
+        FoodTone.Food -> ChiDianColors.ActionPrimary
+        FoodTone.Location -> ChiDianColors.LocationAccent
+        FoodTone.Neutral -> ChiDianColors.ActionPrimary
+        FoodTone.Ai -> ChiDianColors.AiBlue
+    }
     Surface(
         modifier = modifier,
-        color = if (selected) activeColor else ChiDianColors.SurfaceWarm,
+        color = if (selected) activeColor else ChiDianColors.SurfaceSubtle,
         shape = RoundedCornerShape(999.dp),
-        border = if (selected) null else BorderStroke(1.dp, ChiDianColors.Line)
+        border = if (selected) null else BorderStroke(1.dp, ChiDianColors.BorderSubtle)
     ) {
         Text(
             text = text,
@@ -76,7 +93,7 @@ fun FoodSegmentedButtons(
     onSecond: () -> Unit
 ) {
     Surface(
-        color = ChiDianColors.SurfaceWarm,
+        color = ChiDianColors.SurfaceSubtle,
         shape = RoundedCornerShape(10.dp),
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
@@ -110,11 +127,11 @@ fun FoodSearchPanel(
     val focusManager = LocalFocusManager.current
     FoodCard {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = ChiDianColors.SurfaceWarm, shape = RoundedCornerShape(999.dp)) {
+            Surface(color = ChiDianColors.ActionPrimarySoft, shape = RoundedCornerShape(999.dp)) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = ChiDianColors.Tomato,
+                    tint = ChiDianColors.ActionPrimary,
                     modifier = Modifier
                         .padding(8.dp)
                         .size(20.dp)
@@ -152,7 +169,7 @@ fun FoodSearchPanel(
                 onSubmit()
             },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.Tomato),
+            colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.ActionPrimary),
             shape = RoundedCornerShape(8.dp)
         ) {
             Icon(buttonIcon, contentDescription = null, modifier = Modifier.size(18.dp))

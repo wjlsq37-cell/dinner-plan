@@ -24,6 +24,7 @@ export interface RecommendationRequest {
   preferences?: UserPreferenceDto;
   cookSource?: CookSourceDto;
   requestId?: string | null;
+  broadSearch?: boolean;
 }
 
 export interface IngredientDto {

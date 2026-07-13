@@ -41,7 +41,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -59,6 +58,7 @@ import com.dinnerplan.chidian.recipeMetaLine
 import com.dinnerplan.chidian.UserReasonContext
 import com.dinnerplan.chidian.ui.components.FoodCard
 import com.dinnerplan.chidian.ui.components.FoodChip
+import com.dinnerplan.chidian.ui.components.FoodTone
 import com.dinnerplan.chidian.ui.components.FoodInfoTile
 import com.dinnerplan.chidian.ui.components.FoodTopBar
 import com.dinnerplan.chidian.ui.components.StaggeredVisible
@@ -96,7 +96,7 @@ fun MealPlanDetailScreen(
                     subtitle = friendlyReason(plan.reason, UserReasonContext.MealPlan),
                     imageUrl = plan.coverUrl,
                     chips = plan.tags,
-                    green = false
+                    tone = FoodTone.Food
                 )
             }
         }
@@ -179,7 +179,7 @@ fun RecipeDetailScreen(
                     subtitle = friendlyReason(recipe.reason, UserReasonContext.Recipe),
                     imageUrl = recipe.coverUrl,
                     chips = recipe.tags,
-                    green = false
+                    tone = FoodTone.Food
                 )
             }
         }
@@ -263,7 +263,7 @@ fun RestaurantDetailScreen(
                     subtitle = friendlyReason(restaurant.reason, UserReasonContext.Restaurant),
                     imageUrl = restaurant.coverUrl,
                     chips = restaurant.tags,
-                    green = true
+                    tone = FoodTone.Neutral
                 )
             }
         }
@@ -285,7 +285,7 @@ fun RestaurantDetailScreen(
                     Text(restaurant.address.ifBlank { "暂无地址" }, color = ChiDianColors.Muted, lineHeight = 20.sp)
                     if (restaurant.phone.isNotBlank()) {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Phone, contentDescription = null, tint = ChiDianColors.MintDark, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Filled.Phone, contentDescription = null, tint = ChiDianColors.LocationAccent, modifier = Modifier.size(16.dp))
                             Text(restaurant.phone, color = ChiDianColors.Muted)
                         }
                     }
@@ -297,7 +297,7 @@ fun RestaurantDetailScreen(
                 Button(
                     onClick = onNavigate,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.MintDark),
+                    colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.ActionPrimary),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Icon(Icons.Filled.Navigation, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -324,13 +324,9 @@ private fun DetailHero(
     subtitle: String,
     imageUrl: String,
     chips: List<String>,
-    green: Boolean
+    tone: FoodTone = FoodTone.Food
 ) {
-    val gradient = if (green) {
-        Brush.linearGradient(listOf(ChiDianColors.MintDark, ChiDianColors.Mint))
-    } else {
-        ChiDianGradients.AppetiteHero
-    }
+    val gradient = ChiDianGradients.AppetiteHero
 
     FoodCard {
         if (imageUrl.isNotBlank()) {
@@ -365,7 +361,7 @@ private fun DetailHero(
         if (subtitle.isNotBlank()) {
             Text(subtitle, color = ChiDianColors.Muted, fontSize = 13.sp, lineHeight = 20.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
         }
-        DetailChipRow(chips = chips, green = green)
+        DetailChipRow(chips = chips, tone = tone)
     }
 }
 
@@ -393,8 +389,8 @@ private fun DetailSection(
 ) {
     FoodCard {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = ChiDianColors.SurfaceWarm, shape = RoundedCornerShape(999.dp)) {
-                Icon(icon, contentDescription = null, tint = ChiDianColors.Tomato, modifier = Modifier.padding(7.dp).size(17.dp))
+            Surface(color = ChiDianColors.ActionPrimarySoft, shape = RoundedCornerShape(999.dp)) {
+                Icon(icon, contentDescription = null, tint = ChiDianColors.ActionPrimary, modifier = Modifier.padding(7.dp).size(17.dp))
             }
             Text(title, color = ChiDianColors.Ink, fontWeight = FontWeight.Black, fontSize = 16.sp)
         }
@@ -409,9 +405,9 @@ private fun DishDetailLine(dish: DishItem, onRecipe: (String) -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .then(if (recipeId != null) Modifier.clickable { onRecipe(recipeId) } else Modifier),
-        color = ChiDianColors.SurfaceWarm,
+        color = ChiDianColors.SurfaceSubtle,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, ChiDianColors.Line)
+        border = BorderStroke(1.dp, ChiDianColors.BorderSubtle)
     ) {
         Row(
             modifier = Modifier.padding(10.dp),
@@ -419,7 +415,7 @@ private fun DishDetailLine(dish: DishItem, onRecipe: (String) -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                color = ChiDianColors.Tomato,
+                color = ChiDianColors.ActionPrimary,
                 shape = RoundedCornerShape(999.dp)
             ) {
                 Text(
@@ -435,7 +431,7 @@ private fun DishDetailLine(dish: DishItem, onRecipe: (String) -> Unit) {
                 Text(dish.note, color = ChiDianColors.Muted, fontSize = 12.sp, lineHeight = 17.sp)
             }
             if (dish.recipeId != null) {
-                Text("做法", color = ChiDianColors.TomatoDark, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("做法", color = ChiDianColors.ActionPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -449,9 +445,9 @@ private fun DetailTagGrid(items: List<String>) {
                 row.forEach { item ->
                     Surface(
                         modifier = Modifier.weight(1f),
-                        color = ChiDianColors.SurfaceWarm,
+                        color = ChiDianColors.SurfaceSubtle,
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, ChiDianColors.Line)
+                        border = BorderStroke(1.dp, ChiDianColors.BorderSubtle)
                     ) {
                         Text(
                             text = item,
@@ -476,7 +472,7 @@ private fun DetailStepList(steps: List<String>, stepImageUrls: List<String> = em
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         steps.filter { it.isNotBlank() }.forEachIndexed { index, step ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-                Surface(color = ChiDianColors.Tomato, shape = RoundedCornerShape(999.dp)) {
+                Surface(color = ChiDianColors.ActionPrimary, shape = RoundedCornerShape(999.dp)) {
                     Text(
                         text = "${index + 1}",
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -505,7 +501,7 @@ private fun DetailStepList(steps: List<String>, stepImageUrls: List<String> = em
 }
 
 @Composable
-private fun DetailChipRow(chips: List<String>, green: Boolean) {
+private fun DetailChipRow(chips: List<String>, tone: FoodTone) {
     val visibleChips = chips.filter { it.isNotBlank() }
     if (visibleChips.isEmpty()) return
 
@@ -514,7 +510,7 @@ private fun DetailChipRow(chips: List<String>, green: Boolean) {
         horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
         visibleChips.forEach { tag ->
-            FoodChip(text = tag, green = green)
+            FoodChip(text = tag, tone = tone)
         }
     }
 }
@@ -525,10 +521,10 @@ private fun SaveButton(text: String, isSaved: Boolean, onClick: () -> Unit) {
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (isSaved) ChiDianColors.Tomato else ChiDianColors.SurfaceWarm,
+            containerColor = if (isSaved) ChiDianColors.ActionPrimary else ChiDianColors.ActionPrimarySoft,
             contentColor = if (isSaved) Color.White else ChiDianColors.Ink
         ),
-        border = if (isSaved) null else BorderStroke(1.dp, ChiDianColors.Line),
+        border = if (isSaved) null else BorderStroke(1.dp, ChiDianColors.BorderSubtle),
         shape = RoundedCornerShape(8.dp)
     ) {
         Icon(if (isSaved) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, contentDescription = null, modifier = Modifier.size(18.dp))

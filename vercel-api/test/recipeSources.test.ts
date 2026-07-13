@@ -133,6 +133,37 @@ test("friendly empty result is returned when every recipe source is empty", asyn
   assert.match(result.fallbackReason ?? "", /暂时没找到/);
 });
 
+test("broad search fans out without dinner keyword and deduplicates recipes", async () => {
+  const calls: RecipeFetchRequest[] = [];
+  const result = await searchRecipesCascade({
+    query: "",
+    page: 1,
+    pageSize: 3,
+    broadSearch: true,
+    config: { ...baseConfig, priority: ["wanwei"] },
+    fetcher: async (request) => {
+      calls.push(request);
+      const cpName = String(request.form?.cpName ?? request.form?.keyword ?? "");
+      return {
+        showapi_res_code: 0,
+        showapi_res_body: {
+          datas: [
+            {
+              id: cpName === "家常菜" ? "same" : `id_${calls.length}`,
+              cpName: cpName === "家常菜" ? "葱油鸡" : `${cpName}做法`
+            }
+          ]
+        }
+      };
+    }
+  });
+
+  assert.equal(result.recipes.length, 3);
+  assert.equal(new Set(result.recipes.map((recipe) => recipe.id)).size, 3);
+  assert.ok(calls.length > 1);
+  assert.equal(calls.some((call) => Object.values(call.form ?? {}).includes("晚餐")), false);
+});
+
 test("mxnzp detail is loaded only for mxnzp recipe ids", async () => {
   const calls: RecipeFetchRequest[] = [];
   const detail = await loadRecipeDetail({

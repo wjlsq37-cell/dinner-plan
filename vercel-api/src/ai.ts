@@ -10,6 +10,18 @@ export interface RestaurantKeywordPlan {
   searchStrategy: "separate";
 }
 
+export function broadRestaurantKeywordPlan(): RestaurantKeywordPlan {
+  const terms = ["餐厅", "中餐", "小吃", "快餐", "面馆", "粉面", "火锅", "烧烤", "日料", "西餐", "甜品", "咖啡"];
+  return {
+    summary: "随机扩大附近餐厅候选范围",
+    keywords: terms,
+    mustMatch: [],
+    preferMatch: terms,
+    negativeMatch: [],
+    searchStrategy: "separate"
+  };
+}
+
 interface ChatMessage {
   role: "system" | "user";
   content: string;
@@ -257,7 +269,7 @@ function normalizeKeywordPlan(raw: unknown): RestaurantKeywordPlan {
   const keywords = stringArray(obj.keywords).filter(Boolean);
   return {
     summary: text(obj.summary),
-    keywords: keywords.length > 0 ? keywords.slice(0, 8) : ["餐厅"],
+    keywords: keywords.length > 0 ? keywords.slice(0, 12) : ["餐厅"],
     mustMatch: stringArray(obj.mustMatch),
     preferMatch: stringArray(obj.preferMatch),
     negativeMatch: stringArray(obj.negativeMatch),

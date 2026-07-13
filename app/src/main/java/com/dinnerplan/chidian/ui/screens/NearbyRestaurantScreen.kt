@@ -212,7 +212,7 @@ private fun NearbyHeroPanel(
         modifier = Modifier.fillMaxWidth(),
         color = Color.White,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, ChiDianColors.Line),
+        border = BorderStroke(1.dp, ChiDianColors.BorderSubtle),
         shadowElevation = 0.dp
     ) {
         Column(
@@ -237,7 +237,7 @@ private fun NearbyHeroPanel(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
-                        Icon(Icons.Filled.Place, contentDescription = null, tint = ChiDianColors.MintDark, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.Place, contentDescription = null, tint = ChiDianColors.LocationAccent, modifier = Modifier.size(18.dp))
                         if (isEditingLocation) {
                             ManualLocationField(
                                 value = locationDraft,
@@ -261,13 +261,13 @@ private fun NearbyHeroPanel(
                                 overflow = TextOverflow.Ellipsis
                             )
                             TextButton(onClick = { isEditingLocation = true }, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
-                                Text("更改", color = ChiDianColors.MintDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("更改", color = ChiDianColors.LocationAccent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
                 IconButton(onClick = onLocateIssue) {
-                    Icon(Icons.Filled.MyLocation, contentDescription = "定位", tint = ChiDianColors.MintDark)
+                    Icon(Icons.Filled.MyLocation, contentDescription = "定位", tint = ChiDianColors.LocationAccent)
                 }
             }
 
@@ -298,14 +298,14 @@ private fun NearbySearchSurface(
         modifier = Modifier.fillMaxWidth(),
         color = Color.White,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, ChiDianColors.Line)
+        border = BorderStroke(1.dp, ChiDianColors.BorderSubtle)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(9.dp)
         ) {
-            Icon(Icons.Filled.Search, contentDescription = null, tint = ChiDianColors.MintDark, modifier = Modifier.size(22.dp))
+            Icon(Icons.Filled.Search, contentDescription = null, tint = ChiDianColors.LocationAccent, modifier = Modifier.size(22.dp))
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
@@ -316,7 +316,7 @@ private fun NearbySearchSurface(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold
                 ),
-                cursorBrush = SolidColor(ChiDianColors.MintDark),
+                cursorBrush = SolidColor(ChiDianColors.LocationAccent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { submitSearch() }),
                 decorationBox = { innerTextField ->
@@ -341,7 +341,7 @@ private fun NearbySearchSurface(
             }
             Button(
                 onClick = submitSearch,
-                colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.MintDark, contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.ActionPrimary, contentColor = Color.White),
                 shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 9.dp)
             ) {
@@ -361,9 +361,9 @@ private fun ManualLocationField(
 ) {
     Surface(
         modifier = modifier,
-        color = ChiDianColors.Mint.copy(alpha = 0.08f),
+        color = ChiDianColors.LocationAccentSoft,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, ChiDianColors.Mint.copy(alpha = 0.22f))
+        border = BorderStroke(1.dp, ChiDianColors.LocationAccent.copy(alpha = 0.20f))
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp),
@@ -380,7 +380,7 @@ private fun ManualLocationField(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
                 ),
-                cursorBrush = SolidColor(ChiDianColors.MintDark),
+                cursorBrush = SolidColor(ChiDianColors.LocationAccent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
                 decorationBox = { innerTextField ->
@@ -393,7 +393,7 @@ private fun ManualLocationField(
                 }
             )
             TextButton(onClick = onSubmit, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
-                Text("确定", color = ChiDianColors.MintDark, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("确定", color = ChiDianColors.LocationAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
             IconButton(onClick = onCancel, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Filled.Close, contentDescription = "取消", tint = ChiDianColors.Muted, modifier = Modifier.size(16.dp))
@@ -408,18 +408,18 @@ private fun NearbyLoadingCard(developerEnabled: Boolean) {
         modifier = Modifier.fillMaxWidth(),
         color = Color.White,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, ChiDianColors.Line)
+        border = BorderStroke(1.dp, ChiDianColors.BorderSubtle)
     ) {
         Column(
             modifier = Modifier.padding(15.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-                Surface(color = ChiDianColors.Mint.copy(alpha = 0.14f), shape = RoundedCornerShape(999.dp)) {
+                Surface(color = ChiDianColors.LocationAccentSoft, shape = RoundedCornerShape(999.dp)) {
                     Icon(
                         imageVector = Icons.Filled.Restaurant,
                         contentDescription = null,
-                        tint = ChiDianColors.MintDark,
+                        tint = ChiDianColors.LocationAccent,
                         modifier = Modifier
                             .padding(8.dp)
                             .size(20.dp)
@@ -461,10 +461,10 @@ private fun NearbySortRow(selected: RestaurantSortMode, onSelect: (RestaurantSor
                     .weight(1f)
                     .height(42.dp)
                     .clickable { onSelect(mode) },
-                color = if (active) ChiDianColors.MintDark else Color.White,
+                color = if (active) ChiDianColors.ActionPrimary else Color.White,
                 contentColor = if (active) Color.White else ChiDianColors.Ink,
                 shape = RoundedCornerShape(999.dp),
-                border = if (active) null else BorderStroke(1.dp, ChiDianColors.Line),
+                border = if (active) null else BorderStroke(1.dp, ChiDianColors.BorderSubtle),
                 shadowElevation = if (active) 2.dp else 0.dp
             ) {
                 Row(
@@ -495,16 +495,16 @@ private fun NearbySortRow(selected: RestaurantSortMode, onSelect: (RestaurantSor
 private fun NearbyNoticeCard() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = ChiDianColors.Mint.copy(alpha = 0.10f),
+        color = ChiDianColors.LocationAccentSoft,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, ChiDianColors.Mint.copy(alpha = 0.18f))
+        border = BorderStroke(1.dp, ChiDianColors.BorderSubtle)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(Icons.Filled.Refresh, contentDescription = null, tint = ChiDianColors.MintDark, modifier = Modifier.size(18.dp))
+            Icon(Icons.Filled.Refresh, contentDescription = null, tint = ChiDianColors.LocationAccent, modifier = Modifier.size(18.dp))
             Text(
                 text = "根据搜索内容、距离和评分为你整理附近餐厅",
                 color = ChiDianColors.Muted,
@@ -529,7 +529,7 @@ private fun NearbyRestaurantCard(
             .pressScale(onClick),
         color = Color.White,
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, ChiDianColors.Line),
+        border = BorderStroke(1.dp, ChiDianColors.BorderSubtle),
         shadowElevation = 0.dp
     ) {
         Column(
@@ -574,7 +574,7 @@ private fun NearbyRestaurantImage(restaurant: Restaurant) {
         modifier = Modifier
             .size(width = 100.dp, height = 92.dp)
             .clip(shape)
-            .background(ChiDianColors.SurfaceWarm, shape),
+            .background(ChiDianColors.SurfaceSubtle, shape),
         contentAlignment = Alignment.Center
     ) {
         if (restaurant.coverUrl.isNotBlank()) {
@@ -588,7 +588,7 @@ private fun NearbyRestaurantImage(restaurant: Restaurant) {
             Icon(
                 imageVector = Icons.Filled.Restaurant,
                 contentDescription = null,
-                tint = ChiDianColors.MintDark,
+                tint = ChiDianColors.LocationAccent,
                 modifier = Modifier.size(30.dp)
             )
         }
@@ -598,13 +598,13 @@ private fun NearbyRestaurantImage(restaurant: Restaurant) {
 @Composable
 private fun NearbyDistancePill(distance: String) {
     Surface(
-        color = ChiDianColors.Mint.copy(alpha = 0.12f),
+        color = ChiDianColors.LocationAccentSoft,
         shape = RoundedCornerShape(999.dp)
     ) {
         Text(
             text = distance.ifBlank { "附近" },
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            color = ChiDianColors.MintDark,
+            color = ChiDianColors.LocationAccent,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
@@ -616,15 +616,15 @@ private fun NearbyDistancePill(distance: String) {
 @Composable
 private fun NearbyRestaurantMeta(restaurant: Restaurant) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        Icon(Icons.Filled.Star, contentDescription = null, tint = ChiDianColors.Tomato, modifier = Modifier.size(15.dp))
+        Icon(Icons.Filled.Star, contentDescription = null, tint = ChiDianColors.ActionPrimary, modifier = Modifier.size(15.dp))
         Text(
             text = restaurant.rating.ifBlank { "暂无评分" },
-            color = ChiDianColors.Tomato,
+            color = ChiDianColors.ActionPrimary,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1
         )
-        Text("|", color = ChiDianColors.Line, fontSize = 13.sp)
+        Text("|", color = ChiDianColors.BorderSubtle, fontSize = 13.sp)
         Text(
             text = restaurant.price.ifBlank { "人均可问店" },
             color = ChiDianColors.Muted,
@@ -632,7 +632,7 @@ private fun NearbyRestaurantMeta(restaurant: Restaurant) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        Text("|", color = ChiDianColors.Line, fontSize = 13.sp)
+        Text("|", color = ChiDianColors.BorderSubtle, fontSize = 13.sp)
         Text(
             text = restaurant.category.ifBlank { "餐厅" },
             color = ChiDianColors.Muted,
@@ -646,7 +646,7 @@ private fun NearbyRestaurantMeta(restaurant: Restaurant) {
 @Composable
 private fun NearbyReasonPill(reason: String) {
     Surface(
-        color = ChiDianColors.Mint.copy(alpha = 0.10f),
+        color = ChiDianColors.LocationAccentSoft,
         shape = RoundedCornerShape(999.dp)
     ) {
         Row(
@@ -654,10 +654,10 @@ private fun NearbyReasonPill(reason: String) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(Icons.Filled.Favorite, contentDescription = null, tint = ChiDianColors.MintDark, modifier = Modifier.size(14.dp))
+            Icon(Icons.Filled.Favorite, contentDescription = null, tint = ChiDianColors.LocationAccent, modifier = Modifier.size(14.dp))
             Text(
                 text = reason,
-                color = ChiDianColors.MintDark,
+                color = ChiDianColors.LocationAccent,
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
                 maxLines = 1,
@@ -679,16 +679,16 @@ private fun NearbyRestaurantActions(
                 .weight(1f)
                 .height(38.dp)
                 .clickable(onClick = onPrimary),
-            color = ChiDianColors.Mint.copy(alpha = 0.10f),
+            color = ChiDianColors.ActionPrimarySoft,
             shape = RoundedCornerShape(999.dp)
         ) {
             Row(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Filled.Info, contentDescription = null, tint = ChiDianColors.MintDark, modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.Info, contentDescription = null, tint = ChiDianColors.ActionPrimary, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("查看详情", color = ChiDianColors.MintDark, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("查看详情", color = ChiDianColors.ActionPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
         Surface(
@@ -696,9 +696,9 @@ private fun NearbyRestaurantActions(
                 .weight(1f)
                 .height(38.dp)
                 .clickable(onClick = onSave),
-            color = if (isSaved) ChiDianColors.Tomato.copy(alpha = 0.10f) else Color.White,
+            color = if (isSaved) ChiDianColors.ActionPrimarySoft else Color.White,
             shape = RoundedCornerShape(999.dp),
-            border = BorderStroke(1.dp, if (isSaved) ChiDianColors.Tomato.copy(alpha = 0.24f) else ChiDianColors.Line)
+            border = BorderStroke(1.dp, if (isSaved) ChiDianColors.ActionPrimary.copy(alpha = 0.24f) else ChiDianColors.BorderSubtle)
         ) {
             Row(
                 horizontalArrangement = Arrangement.Center,
@@ -707,13 +707,13 @@ private fun NearbyRestaurantActions(
                 Icon(
                     imageVector = if (isSaved) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                     contentDescription = null,
-                    tint = if (isSaved) ChiDianColors.Tomato else ChiDianColors.Ink,
+                    tint = if (isSaved) ChiDianColors.ActionPrimary else ChiDianColors.Ink,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
                     text = if (isSaved) "已收藏" else "收藏",
-                    color = if (isSaved) ChiDianColors.Tomato else ChiDianColors.Ink,
+                    color = if (isSaved) ChiDianColors.ActionPrimary else ChiDianColors.Ink,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )

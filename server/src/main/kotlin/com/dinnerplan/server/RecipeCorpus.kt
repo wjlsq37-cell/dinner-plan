@@ -186,6 +186,21 @@ class RecipeCorpusRepository(
         }.getOrDefault(RecipeCorpusSearchResult(emptyList(), 0))
     }
 
+    fun randomSample(limit: Int = 24): RecipeCorpusSearchResult {
+        if (!dbPath.exists()) return RecipeCorpusSearchResult(emptyList(), 0)
+        return runCatching {
+            connection().use { connection ->
+                connection.prepareStatement("SELECT * FROM recipes ORDER BY RANDOM() LIMIT ?").use { statement ->
+                    statement.setInt(1, limit)
+                    statement.executeQuery().use { rs ->
+                        val recipes = rs.collectRecipes(json)
+                        RecipeCorpusSearchResult(recipes, recipes.size)
+                    }
+                }
+            }
+        }.getOrDefault(RecipeCorpusSearchResult(emptyList(), 0))
+    }
+
     fun recipeById(id: String): RecipeDto? {
         if (!dbPath.exists()) return null
         return runCatching {

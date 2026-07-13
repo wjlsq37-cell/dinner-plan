@@ -31,7 +31,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.ContextCompat
@@ -81,17 +80,14 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private val Tomato = Color(0xFFE2533D)
-private val Muted = Color(0xFF776B61)
-
 private val PersistenceJson = Json {
     ignoreUnknownKeys = true
 }
 
 private const val DEFAULT_BACKEND_BASE_URL = "https://dinner-plan.vercel.app"
 private const val FIXED_RESTAURANT_RESULT_LIMIT = 50
-private const val DECISION_COOK_QUERY = "晚餐"
-private const val DECISION_RESTAURANT_QUERY = "餐厅"
+private const val DECISION_COOK_QUERY = ""
+private const val DECISION_RESTAURANT_QUERY = ""
 private const val HOME_TODAY_INSPIRATION_ITEM_INDEX = 3
 
 private object SettingsKeys {
@@ -215,6 +211,12 @@ fun chooseDecisionRecipeId(recipeIds: List<String>, random: Random = Random.Defa
     val candidates = recipeIds.filter { it.isNotBlank() }.distinct()
     if (candidates.isEmpty()) return null
     return candidates[random.nextInt(candidates.size)]
+}
+
+internal fun apiDecisionRecipes(recipes: List<Recipe>): List<Recipe> {
+    return recipes
+        .filter { !it.source.isNullOrBlank() && !it.source.equals("seed", ignoreCase = true) }
+        .distinctBy { it.id }
 }
 
 fun chooseDecisionRestaurantId(restaurantIds: List<String>, random: Random = Random.Default): String? {
@@ -390,7 +392,8 @@ private interface AiRecommendationRepository {
         mode: RecommendMode,
         cookSourceMode: CookSourceMode,
         preferences: UserPreference,
-        requestId: String? = null
+        requestId: String? = null,
+        broadSearch: Boolean = false
     ): CookResult
 
     suspend fun cancelCook(
@@ -407,7 +410,8 @@ private interface RestaurantRepository {
         query: String,
         locationText: String,
         location: LocationDto,
-        preferences: UserPreference
+        preferences: UserPreference,
+        broadSearch: Boolean = false
     ): RestaurantResult
 }
 
@@ -445,7 +449,8 @@ private class BackendAiRecommendationRepository(
         mode: RecommendMode,
         cookSourceMode: CookSourceMode,
         preferences: UserPreference,
-        requestId: String?
+        requestId: String?,
+        broadSearch: Boolean
     ): CookResult {
         return try {
             val response = backendApiClient.recommendCook(
@@ -455,7 +460,8 @@ private class BackendAiRecommendationRepository(
                     mode = mode.toDto(),
                     preferences = preferences.toDto(),
                     cookSource = cookSourceMode.toDto(),
-                    requestId = requestId
+                    requestId = requestId,
+                    broadSearch = broadSearch
                 )
             )
             CookResult(
@@ -507,7 +513,8 @@ private class BackendRestaurantRepository(
         query: String,
         locationText: String,
         location: LocationDto,
-        preferences: UserPreference
+        preferences: UserPreference,
+        broadSearch: Boolean
     ): RestaurantResult {
         return runCatching {
             val response = backendApiClient.recommendRestaurants(
@@ -516,7 +523,8 @@ private class BackendRestaurantRepository(
                     query = query,
                     mode = RecommendationModeDto.RESTAURANT,
                     location = location,
-                    preferences = preferences.toDto()
+                    preferences = preferences.toDto(),
+                    broadSearch = broadSearch
                 )
             )
             RestaurantResult(
@@ -546,14 +554,15 @@ private class DirectCookRecommendationRepository(
         mode: RecommendMode,
         cookSourceMode: CookSourceMode,
         preferences: UserPreference,
-        requestId: String?
+        requestId: String?,
+        broadSearch: Boolean
     ): CookResult {
         return when (cookSourceMode) {
-            CookSourceMode.Database -> recommendFromRecipeApi(developerSettings, query, mode)
+            CookSourceMode.Database -> recommendFromRecipeApi(developerSettings, query, mode, broadSearch)
             CookSourceMode.AiGenerated -> {
                 if (developerSettings.aiBaseUrl.isBlank() || developerSettings.aiApiKey.isBlank() || developerSettings.aiModel.isBlank()) {
                     logInternalIssue("Direct AI cook configuration missing", "aiBaseUrl/apiKey/model is blank")
-                    return recommendFromRecipeApi(developerSettings, query, mode)
+                    return recommendFromRecipeApi(developerSettings, query, mode, broadSearch)
                         .withFallbackPrefix(friendlyStatusMessage("配置缺失", UserMessageContext.Config))
                 }
                 val aiResponse = runCatching {
@@ -565,7 +574,7 @@ private class DirectCookRecommendationRepository(
                     )
                 }.getOrElse { error ->
                     logInternalIssue("Direct AI cook recommendation failed", error.message, error)
-                    return recommendFromRecipeApi(developerSettings, query, mode)
+                    return recommendFromRecipeApi(developerSettings, query, mode, broadSearch)
                         .withFallbackPrefix(friendlyStatusMessage(error.message, UserMessageContext.Ai))
                 }
                 if (aiResponse != null) {
@@ -575,7 +584,7 @@ private class DirectCookRecommendationRepository(
                         fallbackReason = aiResponse.fallbackReason
                     )
                 } else {
-                    recommendFromRecipeApi(developerSettings, query, mode)
+                    recommendFromRecipeApi(developerSettings, query, mode, broadSearch)
                         .withFallbackPrefix(friendlyStatusMessage("AI 请求失败", UserMessageContext.Ai))
                 }
             }
@@ -593,17 +602,26 @@ private class DirectCookRecommendationRepository(
     private suspend fun recommendFromRecipeApi(
         developerSettings: DeveloperSettings,
         query: String,
-        mode: RecommendMode
+        mode: RecommendMode,
+        broadSearch: Boolean
     ): CookResult {
         return if (mode == RecommendMode.SingleRecipe) {
-            val result = recipeApiClient.searchRecipes(developerSettings, query)
+            val searchTerms = if (broadSearch) broadRecipeSearchTerms() else listOf(query)
+            val results = searchTerms.map { searchQuery ->
+                recipeApiClient.searchRecipes(developerSettings, searchQuery)
+            }
+            val recipes = results
+                .flatMap { it.recipes }
+                .distinctBy { it.id }
+                .take(developerSettings.safePageSize)
             CookResult(
                 mealPlans = emptyList(),
-                recipes = result.recipes.map { it.toUi() },
-                fallbackReason = result.fallbackReason
+                recipes = recipes.map { it.toUi() },
+                fallbackReason = results.firstOrNull { it.fallbackReason != null }?.fallbackReason.takeIf { recipes.isEmpty() }
             )
         } else {
-            val slotResults = wanweiMealSlotQueries(query).map { slotQuery ->
+            val slotQueries = if (broadSearch) broadRecipeSearchTerms() else wanweiMealSlotQueries(query)
+            val slotResults = slotQueries.map { slotQuery ->
                 recipeApiClient.searchRecipes(developerSettings, slotQuery)
             }
             val recipes = slotResults
@@ -613,7 +631,7 @@ private class DirectCookRecommendationRepository(
                 .take(developerSettings.safePageSize)
             val fallbackReason = slotResults.firstOrNull { it.fallbackReason != null }?.fallbackReason
             CookResult(
-                mealPlans = buildWanweiMealPlan(query, recipes, developerSettings.recipeSourceLabel)?.let(::listOf).orEmpty(),
+                mealPlans = buildWanweiMealPlan(query, recipes, developerSettings.recipeSourceLabel, broadSearch)?.let(::listOf).orEmpty(),
                 recipes = recipes,
                 fallbackReason = fallbackReason.takeIf { recipes.isEmpty() }
             )
@@ -630,7 +648,8 @@ private class DirectRestaurantRepository(
         query: String,
         locationText: String,
         location: LocationDto,
-        preferences: UserPreference
+        preferences: UserPreference,
+        broadSearch: Boolean
     ): RestaurantResult {
         return runCatching {
             val response = directAmapApiClient.searchRestaurants(
@@ -638,7 +657,8 @@ private class DirectRestaurantRepository(
                 query = query,
                 locationText = locationText,
                 location = location,
-                preferences = preferences.toDto()
+                preferences = preferences.toDto(),
+                broadSearch = broadSearch
             )
             RestaurantResult(
                 restaurants = response.restaurants.map { it.toUi() },
@@ -696,7 +716,8 @@ private suspend fun fetchDecisionCookResult(
             mode = mode,
             cookSourceMode = CookSourceMode.Database,
             preferences = snapshot.preferences,
-            requestId = null
+            requestId = null,
+            broadSearch = true
         )
     } catch (error: CancellationException) {
         throw error
@@ -727,7 +748,8 @@ private suspend fun fetchDecisionRestaurantResult(
                 latitude = snapshot.currentLatitude,
                 longitude = snapshot.currentLongitude
             ),
-            preferences = snapshot.preferences
+            preferences = snapshot.preferences,
+            broadSearch = true
         )
     } catch (error: CancellationException) {
         throw error
@@ -779,7 +801,16 @@ private fun wanweiMealSlotQueries(query: String): List<String> {
     return (meats + vegetables + soup + staple).filter { it.isNotBlank() }.ifEmpty { listOf(query) }
 }
 
-private fun buildWanweiMealPlan(query: String, recipes: List<Recipe>, sourceLabel: String = "菜谱 API"): MealPlan? {
+private fun broadRecipeSearchTerms(): List<String> {
+    return listOf("家常菜", "鸡蛋", "豆腐", "鸡肉", "猪肉", "牛肉", "鱼", "青菜", "土豆", "茄子", "汤", "面", "饭")
+}
+
+private fun buildWanweiMealPlan(
+    query: String,
+    recipes: List<Recipe>,
+    sourceLabel: String = "菜谱 API",
+    broadSearch: Boolean = false
+): MealPlan? {
     val selected = recipes.distinctBy { it.id }.take(6)
     if (selected.isEmpty()) return null
     val dishes = selected.mapIndexed { index, recipe ->
@@ -799,13 +830,17 @@ private fun buildWanweiMealPlan(query: String, recipes: List<Recipe>, sourceLabe
         .take(18)
     return MealPlan(
         id = "wanwei_meal_${query.hashCode().toString().replace("-", "n")}_${selected.size}",
-        title = "${query.take(12).ifBlank { "家常" }}组合菜单",
+        title = if (broadSearch) "随机推荐组合菜单" else "${query.take(12).ifBlank { "家常" }}组合菜单",
         structure = dishes.joinToString(" · ") { it.course },
         cookTime = "约${(selected.size * 18).coerceAtLeast(35)}分钟",
         servings = "2-3 人份",
         coverUrl = selected.firstOrNull { it.coverUrl.isNotBlank() }?.coverUrl.orEmpty(),
-        tags = (cookTags(query) + sourceLabel).distinct().take(8),
-        reason = "按你的需求从${sourceLabel}菜谱库拆分检索并组装，结果优先保留星级更高、步骤更完整的菜谱。",
+        tags = ((if (broadSearch) listOf("随机推荐", "组合菜单") else cookTags(query)) + sourceLabel).distinct().take(8),
+        reason = if (broadSearch) {
+            "从${sourceLabel}菜谱库扩大候选范围随机组装，优先避开你的忌口。"
+        } else {
+            "按你的需求从${sourceLabel}菜谱库拆分检索并组装，结果优先保留星级更高、步骤更完整的菜谱。"
+        },
         dishes = dishes,
         shoppingList = shoppingList,
         timeline = selected.mapIndexed { index, recipe -> "${index + 1}. ${recipe.name}：${recipe.cookTime}" }
@@ -1962,16 +1997,16 @@ private fun ChiDianApp() {
                     cookRepository = cookRepository,
                     restaurantRepository = restaurantRepository
                 )
+                val apiRecipes = apiDecisionRecipes(candidates.recipes)
                 val nextState = uiState.copy(
                     mealPlans = candidates.mealPlans.ifEmpty { uiState.mealPlans },
-                    recipes = candidates.recipes.ifEmpty { uiState.recipes },
-                    recipeCache = (candidates.recipes + uiState.recipeCache).distinctBy { it.id }.take(80),
+                    recipes = apiRecipes.ifEmpty { uiState.recipes },
+                    recipeCache = (apiRecipes + uiState.recipeCache).distinctBy { it.id }.take(80),
                     restaurants = candidates.restaurants.ifEmpty { uiState.restaurants },
                     restaurantCache = (candidates.restaurants + uiState.restaurantCache).distinctBy { it.id },
                     lastRestaurantLocation = candidates.restaurantLocationUsed.ifBlank { uiState.lastRestaurantLocation }
                 )
-                val recipePool = candidates.recipes.ifEmpty { nextState.recipes + nextState.recipeCache }
-                    .distinctBy { it.id }
+                val recipePool = apiDecisionRecipes(candidates.recipes)
                 val restaurantPool = candidates.restaurants.ifEmpty { nextState.restaurants }
                     .distinctBy { it.id }
                 val selectedRecipeId = chooseDecisionRecipeId(recipePool.map { it.id })
@@ -1995,7 +2030,7 @@ private fun ChiDianApp() {
                     }
                 )
                 if (selectedRecipe == null && selectedRestaurant == null) {
-                    refreshRestaurants(queryOverride = DECISION_RESTAURANT_QUERY, showToast = false)
+                    refreshRestaurants(showToast = false)
                 }
             } catch (error: CancellationException) {
                 throw error
@@ -2211,11 +2246,11 @@ private fun ChiDianApp() {
             AlertDialog(
                 onDismissRequest = { uiState = uiState.copy(dialog = null) },
                 title = { Text(dialog.title, fontWeight = FontWeight.Bold) },
-                text = { Text(dialog.message, color = Muted) },
+                text = { Text(dialog.message, color = ChiDianColors.Muted) },
                 confirmButton = {
                     Button(
                         onClick = { uiState = uiState.copy(dialog = null) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Tomato)
+                        colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.ActionPrimary)
                     ) {
                         Text(dialog.action)
                     }

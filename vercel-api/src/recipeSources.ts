@@ -27,6 +27,7 @@ export interface RecipeCascadeSearchInput {
   page: number;
   pageSize: number;
   config: RecipeApiConfig;
+  broadSearch?: boolean;
   fetcher?: RecipeFetcher;
 }
 
@@ -46,6 +47,45 @@ export async function searchRecipesCascade(input: RecipeCascadeSearchInput): Pro
   const fetcher = input.fetcher ?? defaultRecipeFetcher;
   const priority = input.config.priority.length > 0 ? input.config.priority : ["mxnzp", "wanwei"];
   const failures: string[] = [];
+
+  if (input.broadSearch) {
+    const recipes: RecipeDto[] = [];
+    for (const source of priority) {
+      for (const term of broadRecipeSearchTerms) {
+        try {
+          const next = source === "mxnzp"
+            ? await searchMxnzpRecipes({ ...input, query: term, broadSearch: false }, fetcher)
+            : await searchWanweiRecipes({ ...input, query: term, broadSearch: false }, fetcher);
+          recipes.push(...next);
+          if (distinctRecipes(recipes).length >= input.pageSize) {
+            const distinct = distinctRecipes(recipes).slice(0, input.pageSize);
+            return {
+              recipes: distinct,
+              totalMatches: distinct.length,
+              fallbackReason: null
+            };
+          }
+        } catch (error) {
+          failures.push(`${source}/${term}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+    }
+    const distinct = distinctRecipes(recipes).slice(0, input.pageSize);
+    if (distinct.length > 0) {
+      return {
+        recipes: distinct,
+        totalMatches: distinct.length,
+        fallbackReason: null
+      };
+    }
+    return {
+      recipes: [],
+      totalMatches: 0,
+      fallbackReason: failures.length > 0
+        ? "菜谱服务暂时不可用，请稍后再试。"
+        : "暂时没找到合适的结果，可以换个关键词或放宽条件再试。"
+    };
+  }
 
   for (const source of priority) {
     try {
@@ -72,6 +112,8 @@ export async function searchRecipesCascade(input: RecipeCascadeSearchInput): Pro
       : "暂时没找到合适的结果，可以换个关键词或放宽条件再试。"
   };
 }
+
+const broadRecipeSearchTerms = ["家常菜", "鸡蛋", "豆腐", "鸡肉", "猪肉", "牛肉", "鱼", "青菜", "土豆", "茄子", "汤", "面", "饭"];
 
 export async function loadRecipeDetail(input: RecipeDetailInput): Promise<RecipeDto | null> {
   if (!input.id.startsWith("mxnzp_")) return null;

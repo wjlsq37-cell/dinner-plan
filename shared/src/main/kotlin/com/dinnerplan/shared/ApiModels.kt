@@ -40,7 +40,8 @@ data class RecommendationRequest(
     val location: LocationDto? = null,
     val preferences: UserPreferenceDto = UserPreferenceDto(),
     val cookSource: CookSourceDto = CookSourceDto.DATABASE,
-    val requestId: String? = null
+    val requestId: String? = null,
+    val broadSearch: Boolean = false
 )
 
 @Serializable

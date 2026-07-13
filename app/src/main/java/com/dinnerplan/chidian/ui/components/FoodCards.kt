@@ -36,7 +36,7 @@ fun FoodCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() 
         color = ChiDianColors.Surface,
         tonalElevation = 0.dp,
         shadowElevation = 1.dp,
-        border = BorderStroke(1.dp, ChiDianColors.Line),
+        border = BorderStroke(1.dp, ChiDianColors.BorderSubtle),
         shape = RoundedCornerShape(8.dp)
     ) {
         Column(
@@ -90,11 +90,11 @@ fun StatusCard(
 ) {
     FoodCard(modifier = modifier) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-            Surface(color = ChiDianColors.SurfaceWarm, shape = RoundedCornerShape(999.dp)) {
+            Surface(color = ChiDianColors.ActionPrimarySoft, shape = RoundedCornerShape(999.dp)) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = ChiDianColors.Tomato,
+                    tint = ChiDianColors.ActionPrimary,
                     modifier = Modifier
                         .padding(8.dp)
                         .size(20.dp)
@@ -109,7 +109,7 @@ fun StatusCard(
             Button(
                 onClick = onAction,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.Tomato),
+                colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.ActionPrimary),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(actionText)
@@ -131,7 +131,7 @@ fun EmptyFoodState(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = ChiDianColors.Tomato,
+            tint = ChiDianColors.ActionPrimary,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
                 .size(28.dp)
@@ -154,7 +154,7 @@ fun EmptyFoodState(
         Button(
             onClick = onAction,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.Tomato),
+            colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.ActionPrimary),
             shape = RoundedCornerShape(8.dp)
         ) {
             Text(actionText)
@@ -164,7 +164,7 @@ fun EmptyFoodState(
 
 @Composable
 fun FoodInfoTile(label: String, value: String, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, color = ChiDianColors.SurfaceWarm, shape = RoundedCornerShape(8.dp)) {
+    Surface(modifier = modifier, color = ChiDianColors.SurfaceSubtle, shape = RoundedCornerShape(8.dp)) {
         Column(Modifier.padding(10.dp)) {
             Text(label, color = ChiDianColors.Muted, fontSize = 11.sp)
             Text(value, color = ChiDianColors.Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)

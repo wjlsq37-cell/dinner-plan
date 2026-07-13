@@ -15,13 +15,23 @@ data class RestaurantKeywordPlan(
     fun normalized(): RestaurantKeywordPlan {
         val cleanKeywords = keywords.cleanTerms().ifEmpty { listOf("餐厅") }
         return copy(
-            keywords = cleanKeywords.take(8),
+            keywords = cleanKeywords.take(12),
             mustMatch = mustMatch.cleanTerms().take(8),
             preferMatch = preferMatch.cleanTerms().take(12),
             negativeMatch = negativeMatch.cleanTerms().take(8),
             searchStrategy = if (searchStrategy.isBlank()) "separate" else searchStrategy
         )
     }
+}
+
+fun broadRestaurantKeywordPlan(): RestaurantKeywordPlan {
+    val terms = broadRestaurantSearchTerms()
+    return RestaurantKeywordPlan(
+        summary = "随机扩大附近餐厅候选范围",
+        keywords = terms,
+        preferMatch = terms,
+        searchStrategy = "separate"
+    ).normalized()
 }
 
 @Serializable
@@ -261,6 +271,10 @@ object RestaurantAiReranker {
 
 private fun List<String>.cleanTerms(): List<String> {
     return flatMap(::splitTerms).filter { it.isNotBlank() }.distinct()
+}
+
+private fun broadRestaurantSearchTerms(): List<String> {
+    return listOf("餐厅", "中餐", "小吃", "快餐", "面馆", "粉面", "火锅", "烧烤", "日料", "西餐", "甜品", "咖啡")
 }
 
 private fun splitTerms(value: String): List<String> {

@@ -48,7 +48,8 @@ internal class DirectAmapApiClient(
         query: String,
         locationText: String,
         location: LocationDto,
-        preferences: UserPreferenceDto
+        preferences: UserPreferenceDto,
+        broadSearch: Boolean = false
     ): RestaurantRecommendationResponse {
         if (settings.amapWebKey.isBlank()) {
             logInternalIssue("Direct Amap configuration missing", "amapWebKey is blank")
@@ -68,8 +69,12 @@ internal class DirectAmapApiClient(
                     )
 
                 val limit = preferences.restaurantResultLimit.coerceIn(1, 50)
-                val keywordPlan = directAiApiClient.parseRestaurantKeywordPlan(settings, query)
-                    ?: DirectRestaurantKeywordAiParser.fallbackPlan(query)
+                val keywordPlan = if (broadSearch) {
+                    broadDirectRestaurantKeywordPlan()
+                } else {
+                    directAiApiClient.parseRestaurantKeywordPlan(settings, query)
+                        ?: DirectRestaurantKeywordAiParser.fallbackPlan(query)
+                }
                 val candidates = DirectAmapMultiKeywordSearch { keyword ->
                     fetchAroundCandidates(
                         settings = settings,

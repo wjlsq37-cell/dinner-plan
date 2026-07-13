@@ -17,12 +17,15 @@ export async function recommendCook(
     query: request.query,
     page: 1,
     pageSize: 50,
-    config: config.recipe
+    config: config.recipe,
+    broadSearch: request.broadSearch ?? false
   });
   return {
     intent: normalizeCookIntent(mode),
     summary: search.recipes.length > 0
-      ? `已为你找到 ${search.recipes.length} 道相关菜谱。`
+      ? request.broadSearch
+        ? `已为你随机扩大候选范围，找到 ${search.recipes.length} 道菜谱。`
+        : `已为你找到 ${search.recipes.length} 道相关菜谱。`
       : "暂时没找到合适的结果，可以换个关键词或放宽条件再试。",
     mealPlans: [],
     recipes: search.recipes,

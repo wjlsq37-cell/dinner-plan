@@ -1,4 +1,4 @@
-import { parseRestaurantKeywordPlan, type RestaurantKeywordPlan } from "./ai.js";
+import { broadRestaurantKeywordPlan, parseRestaurantKeywordPlan, type RestaurantKeywordPlan } from "./ai.js";
 import type { VercelApiConfig } from "./config.js";
 import type { LocationDto, RecommendationRequest, RestaurantDto, RestaurantRecommendationResponse } from "./types.js";
 
@@ -31,7 +31,7 @@ export async function recommendRestaurantsFromAmap(
   if (!location?.latitude || !location.longitude) {
     return { restaurants: [], locationUsed: request.location ?? null, fallbackReason: "暂时无法获取当前位置，你也可以手动输入地点。" };
   }
-  const plan = await parseRestaurantKeywordPlan(request.query, config);
+  const plan = request.broadSearch ? broadRestaurantKeywordPlan() : await parseRestaurantKeywordPlan(request.query, config);
   const radiusMeters = parseRadiusMeters(request.query, request.preferences?.defaultDistanceKm ?? 5);
   const candidates = await searchCandidates(plan, location, radiusMeters, config).catch(() => []);
   if (candidates.length === 0) {

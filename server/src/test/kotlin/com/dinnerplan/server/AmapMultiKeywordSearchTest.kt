@@ -52,6 +52,27 @@ class AmapMultiKeywordSearchTest {
         assertTrue(result.any { it.name == "隐泉寿司" })
     }
 
+    @Test
+    fun broadRestaurantPlanFansOutAndDeduplicatesCandidates() = kotlinx.coroutines.test.runTest {
+        val calls = mutableListOf<String>()
+        val search = AmapMultiKeywordSearch { keyword ->
+            calls += keyword
+            when (keyword) {
+                "餐厅" -> listOf(candidate("same", "湖滨家常菜", "湖滨路 1 号"))
+                "中餐" -> listOf(candidate("same", "湖滨家常菜", "湖滨路 1 号"))
+                else -> listOf(candidate("poi_${calls.size}", "$keyword 推荐店", "湖滨路 ${calls.size} 号"))
+            }
+        }
+
+        val result = search.search(broadRestaurantKeywordPlan())
+
+        assertTrue(calls.size > 1)
+        assertTrue("餐厅" in calls)
+        assertTrue("中餐" in calls)
+        assertEquals(result.map { it.dedupeKey }.distinct(), result.map { it.dedupeKey })
+        assertEquals(1, result.count { it.id == "same" })
+    }
+
     private fun candidate(id: String, name: String, address: String): RestaurantCandidate {
         return RestaurantCandidate(
             id = id,

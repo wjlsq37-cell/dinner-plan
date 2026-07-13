@@ -73,9 +73,9 @@ fun ShimmerLine(modifier: Modifier = Modifier) {
             .background(
                 Brush.linearGradient(
                     colors = listOf(
-                        ChiDianColors.Tomato.copy(alpha = 0.24f),
-                        ChiDianColors.Sun,
-                        ChiDianColors.AiCyan.copy(alpha = 0.55f)
+                        ChiDianColors.ActionPrimary.copy(alpha = 0.18f),
+                        ChiDianColors.ActionPrimarySoft,
+                        ChiDianColors.LocationAccentSoft
                     ),
                     start = Offset(offset * 600f, 0f),
                     end = Offset((offset + 1f) * 600f, 0f)

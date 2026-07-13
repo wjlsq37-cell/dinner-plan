@@ -59,6 +59,7 @@ import com.dinnerplan.chidian.Recipe
 import com.dinnerplan.chidian.Restaurant
 import com.dinnerplan.chidian.ui.components.FoodCard
 import com.dinnerplan.chidian.ui.components.FoodChip
+import com.dinnerplan.chidian.ui.components.FoodTone
 import com.dinnerplan.chidian.ui.components.StaggeredVisible
 import com.dinnerplan.chidian.ui.components.pressScale
 import com.dinnerplan.chidian.ui.theme.ChiDianColors
@@ -108,7 +109,7 @@ fun HomeScreen(
                         icon = Icons.Filled.Restaurant,
                         title = "自己做",
                         description = "菜谱和成套晚餐",
-                        tint = ChiDianColors.Tomato,
+                        tint = ChiDianColors.ActionPrimary,
                         onClick = onCookSearch
                     )
                     ActionPanel(
@@ -118,7 +119,7 @@ fun HomeScreen(
                         icon = Icons.Filled.Place,
                         title = "附近吃",
                         description = "按位置找顺路好店",
-                        tint = ChiDianColors.MintDark,
+                        tint = ChiDianColors.LocationAccent,
                         onClick = onRestaurantSearch
                     )
                 }
@@ -149,7 +150,7 @@ private fun DecisionCard(onDecision: () -> Unit, isDecisionLoading: Boolean) {
         shape = RoundedCornerShape(8.dp),
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
-        border = BorderStroke(1.dp, ChiDianColors.Line)
+        border = BorderStroke(1.dp, ChiDianColors.BorderSubtle)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -161,17 +162,17 @@ private fun DecisionCard(onDecision: () -> Unit, isDecisionLoading: Boolean) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = ChiDianColors.Mint.copy(alpha = 0.12f), shape = RoundedCornerShape(999.dp)) {
+                    Surface(color = ChiDianColors.ActionPrimarySoft, shape = RoundedCornerShape(999.dp)) {
                         Icon(
                             imageVector = Icons.Filled.AutoAwesome,
                             contentDescription = null,
-                            tint = ChiDianColors.MintDark,
+                            tint = ChiDianColors.ActionPrimary,
                             modifier = Modifier
                                 .padding(7.dp)
                                 .size(17.dp)
                         )
                     }
-                    Text("今日决策", color = ChiDianColors.MintDark, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("今日决策", color = ChiDianColors.ActionPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
                 Text("少纠结一点", color = ChiDianColors.Muted, fontSize = 12.sp)
             }
@@ -193,9 +194,9 @@ private fun DecisionCard(onDecision: () -> Unit, isDecisionLoading: Boolean) {
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isDecisionLoading,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = ChiDianColors.MintDark,
+                    containerColor = ChiDianColors.ActionPrimary,
                     contentColor = Color.White,
-                    disabledContainerColor = ChiDianColors.MintDark.copy(alpha = 0.62f),
+                    disabledContainerColor = ChiDianColors.ActionPrimary.copy(alpha = 0.62f),
                     disabledContentColor = Color.White
                 ),
                 shape = RoundedCornerShape(8.dp)
@@ -348,7 +349,7 @@ private fun TodayInspiration(
 private fun DecisionRecipeCard(
     recipe: Recipe,
     onClick: () -> Unit,
-    borderColor: Color = ChiDianColors.Line,
+    borderColor: Color = ChiDianColors.BorderSubtle,
     containerColor: Color = ChiDianColors.Surface,
     shadowElevation: Dp = 1.dp
 ) {
@@ -358,7 +359,7 @@ private fun DecisionRecipeCard(
         title = recipe.name,
         subtitle = recipeMetaForDecision(recipe),
         tags = (recipe.taste + recipe.tags).filter { it.isNotBlank() }.take(3),
-        tint = ChiDianColors.Tomato,
+        tint = ChiDianColors.ActionPrimary,
         borderColor = borderColor,
         containerColor = containerColor,
         shadowElevation = shadowElevation,
@@ -370,7 +371,7 @@ private fun DecisionRecipeCard(
 private fun InspirationRestaurantCard(
     restaurant: Restaurant,
     onClick: () -> Unit,
-    borderColor: Color = ChiDianColors.Line,
+    borderColor: Color = ChiDianColors.BorderSubtle,
     containerColor: Color = ChiDianColors.Surface,
     shadowElevation: Dp = 1.dp
 ) {
@@ -380,7 +381,7 @@ private fun InspirationRestaurantCard(
         title = restaurant.name,
         subtitle = "${restaurant.distance} · ${restaurant.price} · ${restaurant.rating} 分",
         tags = restaurant.tags.take(3),
-        tint = ChiDianColors.MintDark,
+        tint = ChiDianColors.LocationAccent,
         borderColor = borderColor,
         containerColor = containerColor,
         shadowElevation = shadowElevation,
@@ -420,7 +421,7 @@ private fun AnimatedDecisionCard(
         highlight.animateTo(0f, tween(250, easing = FastOutSlowInEasing))
     }
 
-    val borderColor = lerp(ChiDianColors.Line, ChiDianColors.Orange.copy(alpha = 0.45f), highlight.value)
+    val borderColor = lerp(ChiDianColors.BorderSubtle, ChiDianColors.ActionPrimary.copy(alpha = 0.35f), highlight.value)
     val containerColor = ChiDianColors.Surface
     val shadowElevation = (1f + 2f * highlight.value).dp
     Box(
@@ -439,11 +440,11 @@ private fun AnimatedDecisionCard(
 private fun DecisionLoadingCard() {
     FoodCard {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = ChiDianColors.Mint.copy(alpha = 0.12f), shape = RoundedCornerShape(999.dp)) {
+            Surface(color = ChiDianColors.ActionPrimarySoft, shape = RoundedCornerShape(999.dp)) {
                 Icon(
                     imageVector = Icons.Filled.AutoAwesome,
                     contentDescription = null,
-                    tint = ChiDianColors.MintDark,
+                    tint = ChiDianColors.ActionPrimary,
                     modifier = Modifier
                         .padding(10.dp)
                         .size(20.dp)
@@ -461,7 +462,7 @@ private fun DecisionLoadingCard() {
 private fun DecisionEmptyCard() {
     FoodCard {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(color = ChiDianColors.SurfaceWarm, shape = RoundedCornerShape(999.dp)) {
+            Surface(color = ChiDianColors.SurfaceSubtle, shape = RoundedCornerShape(999.dp)) {
                 Icon(
                     imageVector = Icons.Filled.AutoAwesome,
                     contentDescription = null,
@@ -495,7 +496,7 @@ private fun InspirationCard(
     subtitle: String,
     tags: List<String>,
     tint: Color,
-    borderColor: Color = ChiDianColors.Line,
+    borderColor: Color = ChiDianColors.BorderSubtle,
     containerColor: Color = ChiDianColors.Surface,
     shadowElevation: Dp = 1.dp,
     onClick: () -> Unit
@@ -518,7 +519,7 @@ private fun InspirationCard(
                 Box(
                     modifier = Modifier
                         .size(82.dp)
-                        .background(ChiDianColors.SurfaceWarm, RoundedCornerShape(8.dp))
+                        .background(ChiDianColors.SurfaceSubtle, RoundedCornerShape(8.dp))
                 ) {
                     AsyncImage(
                         model = imageUrl,
@@ -534,7 +535,7 @@ private fun InspirationCard(
                             .padding(6.dp),
                         color = Color.White.copy(alpha = 0.92f),
                         shape = RoundedCornerShape(999.dp),
-                        border = BorderStroke(1.dp, ChiDianColors.Line)
+                        border = BorderStroke(1.dp, ChiDianColors.BorderSubtle)
                     ) {
                         Icon(
                             imageVector = icon,
@@ -569,7 +570,7 @@ private fun InspirationCard(
                         horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
                         tags.forEach { tag ->
-                            FoodChip(text = tag, green = tint == ChiDianColors.MintDark)
+                            FoodChip(text = tag, tone = FoodTone.Neutral)
                         }
                     }
                 }

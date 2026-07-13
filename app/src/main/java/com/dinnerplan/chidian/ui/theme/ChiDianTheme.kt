@@ -25,22 +25,29 @@ object ChiDianColors {
     val Ink = Color(0xFF201A16)
     val Muted = Color(0xFF746A61)
     val SoftMuted = Color(0xFF9E9188)
+
+    val ActionPrimary = Color(0xFFC8372B)
+    val ActionPrimarySoft = Color(0xFFFFF4EA)
+    val LocationAccent = Color(0xFF176C49)
+    val LocationAccentSoft = Color(0xFFF0FBF5)
+    val SurfaceSubtle = Color(0xFFFFF8F0)
+    val BorderSubtle = Color(0xFFF0DED2)
 }
 
 object ChiDianGradients {
     val AppetiteHero: Brush
         get() = Brush.linearGradient(
-            listOf(ChiDianColors.Tomato, ChiDianColors.Orange, ChiDianColors.Sun)
+            listOf(ChiDianColors.ActionPrimary, ChiDianColors.Orange, ChiDianColors.ActionPrimary)
         )
 
     val NearbyHero: Brush
         get() = Brush.linearGradient(
-            listOf(ChiDianColors.Mint, ChiDianColors.AiCyan, ChiDianColors.Sun)
+            listOf(ChiDianColors.LocationAccent, ChiDianColors.LocationAccentSoft, ChiDianColors.SurfaceSubtle)
         )
 
     val AiGlow: Brush
         get() = Brush.linearGradient(
-            listOf(ChiDianColors.AiBlue, ChiDianColors.AiCyan, ChiDianColors.Tomato)
+            listOf(ChiDianColors.AiBlue, ChiDianColors.AiCyan, ChiDianColors.ActionPrimary)
         )
 }
 
@@ -53,14 +60,19 @@ val ChiDianShapes = Shapes(
 )
 
 private val ChiDianLightScheme = lightColorScheme(
-    primary = ChiDianColors.Tomato,
+    primary = ChiDianColors.ActionPrimary,
     onPrimary = Color.White,
-    secondary = ChiDianColors.Mint,
+    primaryContainer = ChiDianColors.ActionPrimarySoft,
+    onPrimaryContainer = ChiDianColors.ActionPrimary,
+    secondary = ChiDianColors.LocationAccent,
     onSecondary = Color.White,
+    secondaryContainer = ChiDianColors.LocationAccentSoft,
+    onSecondaryContainer = ChiDianColors.LocationAccent,
     background = ChiDianColors.Canvas,
     surface = ChiDianColors.Surface,
+    surfaceVariant = ChiDianColors.SurfaceSubtle,
     onSurface = ChiDianColors.Ink,
-    outline = ChiDianColors.Line
+    outline = ChiDianColors.BorderSubtle
 )
 
 @Composable
