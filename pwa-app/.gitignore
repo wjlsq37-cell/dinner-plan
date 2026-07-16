@@ -6,3 +6,6 @@ test-results/
 .env.local
 .vercel/
 *.tsbuildinfo
+
+.vercel
+.env*
