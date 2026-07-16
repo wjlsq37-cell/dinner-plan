@@ -11,10 +11,14 @@ export default async function handler(request: VercelRequest, response: VercelRe
     const headers: Record<string, string> = { accept: "application/json" };
     if (process.env.UPSTREAM_APP_TOKEN) headers["x-app-token"] = process.env.UPSTREAM_APP_TOKEN;
     const upstream = await fetch(new URL("/api/health", base), { headers, signal: controller.signal, redirect: "error" }).finally(() => clearTimeout(timer));
+    const health = await upstream.json().catch(() => null) as { ok?: unknown } | null;
+    const configured = upstream.ok && health?.ok === true;
     json(response, 200, {
       proxyReachable: upstream.ok,
-      backendConfigured: upstream.ok,
-      message: upstream.ok ? "线上服务连接正常。" : upstream.status === 401 || upstream.status === 403 ? "服务鉴权失败。" : "线上服务暂时不可用。"
+      backendConfigured: configured,
+      message: !upstream.ok
+        ? upstream.status === 401 || upstream.status === 403 ? "服务鉴权失败。" : "线上服务暂时不可用。"
+        : configured ? "线上服务连接正常。" : "线上服务已连接，但推荐服务配置不完整。"
     });
   } catch {
     json(response, 200, { proxyReachable: false, backendConfigured: false, message: "暂时无法连接线上服务。" });

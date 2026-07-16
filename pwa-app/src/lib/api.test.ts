@@ -34,4 +34,14 @@ describe("ApiGateway error mapping", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({ operation: "recipe", id: "recipe-id" });
     expect(fetchMock.mock.calls.every((call) => call[0] === "/api/direct")).toBe(true);
   });
+
+  it("reports a missing proxy route as a deployment problem", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "proxy_route_missing", message: "missing" }), { status: 404, headers: { "content-type": "application/json" } })));
+    await expect(new ApiGateway(defaultState.developerSettings).cook({ query: "牛肉", mode: "RECIPE_SINGLE" })).rejects.toMatchObject({ kind: "proxy_unreachable", status: 404 });
+  });
+
+  it("rejects successful responses with the wrong DTO shape", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } })));
+    await expect(new ApiGateway(defaultState.developerSettings).restaurants({ query: "面馆", mode: "RESTAURANT" })).rejects.toMatchObject({ kind: "invalid_response" });
+  });
 });
