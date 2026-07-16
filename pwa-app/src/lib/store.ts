@@ -7,7 +7,7 @@ const STORE_NAME = "state";
 
 export const defaultState: PersistedState = {
   version: 1,
-  preferences: { tastes: ["微辣", "清淡"], avoids: ["香菜", "海鲜"], defaultDistanceKm: 5, defaultBudget: "medium", preferQuickRecipes: true, preferOpenRestaurants: true, restaurantResultLimit: 50 },
+  preferences: { tastes: ["清淡"], avoids: ["香菜"], defaultDistanceKm: 5, defaultBudget: "medium", preferQuickRecipes: true, preferOpenRestaurants: true, restaurantResultLimit: 50 },
   developerSettings: { enabled: false, aiProvider: "deepseek", aiBaseUrl: "https://api.deepseek.com", aiApiKey: "", aiModel: "deepseek-v4-flash", amapWebKey: "", recipeApiSource: "wanwei", recipeApiBaseUrl: "", recipeApiAppId: "", recipeApiSecret: "", wanweiRecipeAppKey: "", recipePageSize: 20, maxWaitSeconds: 180 },
   location: { text: "上海人民广场" },
   saved: [{ kind: "meal", id: "meal_spicy_combo" }, { kind: "recipe", id: "recipe_beef_tomato" }, { kind: "restaurant", id: "restaurant_noodle" }],

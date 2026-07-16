@@ -1,9 +1,31 @@
-import type { CookRecommendationResponse, DeveloperSettings, MealPlan, Recipe, RecommendationRequest, RestaurantRecommendationResponse } from "../types";
+import type { ApiErrorKind, CookRecommendationResponse, DeveloperSettings, MealPlan, Recipe, RecommendationRequest, RestaurantRecommendationResponse, ServiceStatus } from "../types";
+
+export class ApiError extends Error {
+  constructor(public kind: ApiErrorKind, message: string, public status?: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 
 async function requestJson<T>(url: string, init?: RequestInit, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, { ...init, signal, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
+  if (!navigator.onLine) throw new ApiError("offline", "当前处于离线状态，联网后再试一次。");
+  let response: Response;
+  try {
+    response = await fetch(url, { ...init, signal, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw new ApiError("cancelled", "请求已取消，已保留上一次成功结果。");
+    throw new ApiError("proxy_unreachable", "暂时无法连接服务，请检查网络或代理部署。");
+  }
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof body.message === "string" ? body.message : `请求失败（${response.status}）`);
+  if (!response.ok) {
+    const message = typeof body.message === "string" ? body.message : `请求失败（${response.status}）`;
+    const code = typeof body.error === "string" ? body.error : "";
+    const kind: ApiErrorKind = response.status === 401 || response.status === 403 ? "auth"
+      : response.status === 408 || response.status === 504 ? "timeout"
+      : response.status === 400 || code.includes("config") ? "config"
+      : response.status === 502 || response.status === 503 ? "upstream" : "invalid_response";
+    throw new ApiError(kind, message, response.status);
+  }
   return body as T;
 }
 
@@ -35,5 +57,9 @@ export class ApiGateway {
 
   mealPlan(id: string, signal?: AbortSignal): Promise<MealPlan> {
     return requestJson(`/api/backend/meal-plans/${encodeURIComponent(id)}`, undefined, signal);
+  }
+
+  status(signal?: AbortSignal): Promise<ServiceStatus> {
+    return requestJson("/api/status", { method: "GET" }, signal);
   }
 }

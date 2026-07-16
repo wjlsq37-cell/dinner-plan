@@ -2,6 +2,14 @@ export type RecommendMode = "RECIPE_COMBO" | "RECIPE_SINGLE";
 export type CookSource = "DATABASE" | "AI_GENERATED";
 export type SavedKind = "meal" | "recipe" | "restaurant";
 export type RestaurantSort = "relevance" | "distance" | "rating";
+export type ApiErrorKind = "offline" | "proxy_unreachable" | "auth" | "config" | "timeout" | "upstream" | "invalid_response" | "cancelled";
+export type LocationErrorKind = "insecure_context" | "unsupported" | "permission_denied" | "unavailable" | "timeout" | "unknown";
+
+export interface ServiceStatus {
+  proxyReachable: boolean;
+  backendConfigured: boolean;
+  message: string;
+}
 
 export interface LocationValue {
   latitude?: number | null;
@@ -12,7 +20,7 @@ export interface LocationValue {
 export interface UserPreference {
   tastes: string[];
   avoids: string[];
-  defaultDistanceKm: number;
+  defaultDistanceKm: number | null;
   defaultBudget: string;
   preferQuickRecipes: boolean;
   preferOpenRestaurants: boolean;

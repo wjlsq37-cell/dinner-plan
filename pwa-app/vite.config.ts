@@ -28,13 +28,14 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: "/index.html",
+        cleanupOutdatedCaches: true,
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.(?:png|jpg|jpeg|webp|gif)(?:\?.*)?$/i,
             handler: "StaleWhileRevalidate",
             options: {
-              cacheName: "chidian-images-v1",
+              cacheName: "chidian-images-v2",
               expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 7 },
               cacheableResponse: { statuses: [0, 200] }
             }
@@ -48,6 +49,8 @@ export default defineConfig({
     })
   ],
   server: {
+    host: "0.0.0.0",
+    allowedHosts: ["terminal.local"],
     port: 5173,
     proxy: {
       "/api/backend": {
