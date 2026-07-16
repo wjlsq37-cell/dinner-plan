@@ -58,3 +58,4 @@ export async function fetchJson(url: URL | string, init: RequestInit = {}, timeo
     return JSON.parse(text);
   } finally { clearTimeout(timeout); }
 }
+

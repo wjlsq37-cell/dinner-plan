@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { assertPublicResolution, isBodyAllowed, json, safeHttpsUrl, safeMessage } from "../_shared.js";
-import { backendPath } from "./route.js";
+import { assertPublicResolution, isBodyAllowed, json, safeHttpsUrl, safeMessage } from "../../server/shared.js";
+import { backendPath } from "../../server/backend-route.js";
 
 function upstreamFailure(response: VercelResponse, status: number, body: unknown) {
   const upstreamMessage = body && typeof body === "object" && typeof (body as { message?: unknown }).message === "string"

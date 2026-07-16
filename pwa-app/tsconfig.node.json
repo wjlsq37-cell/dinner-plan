@@ -9,5 +9,5 @@
     "strict": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "vitest.config.ts", "api/**/*.ts", "src/types.ts"]
+  "include": ["vite.config.ts", "vitest.config.ts", "api/**/*.ts", "server/**/*.ts", "test/**/*.ts", "src/types.ts"]
 }

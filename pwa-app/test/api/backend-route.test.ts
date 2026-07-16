@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { backendPath } from "./route";
+import { backendPath } from "../../server/backend-route";
 
 describe("backend proxy route", () => {
   it("reads a Vercel splat string", () => {

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { assertPublicResolution, json, safeHttpsUrl } from "./_shared.js";
+import { assertPublicResolution, json, safeHttpsUrl } from "../server/shared.js";
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (request.method !== "GET") return json(response, 405, { proxyReachable: false, backendConfigured: false, message: "请求方式不支持。" });

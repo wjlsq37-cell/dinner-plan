@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import type { DeveloperSettings, RecommendationRequest, Recipe, Restaurant } from "../src/types.js";
-import { fetchJson, isBodyAllowed, json, requirePost, safeHttpsUrl, safeMessage } from "./_shared.js";
+import { fetchJson, isBodyAllowed, json, requirePost, safeHttpsUrl, safeMessage } from "../server/shared.js";
 
 type DirectBody = { operation?: "cook" | "restaurant" | "recipe"; settings?: DeveloperSettings; payload?: RecommendationRequest; id?: string };
 

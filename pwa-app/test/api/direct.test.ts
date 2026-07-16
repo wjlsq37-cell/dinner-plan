@@ -1,30 +1,26 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DeveloperSettings } from "../src/types";
+import type { DeveloperSettings } from "../../src/types";
 
 const settingsBase: DeveloperSettings = { enabled: true, aiProvider: "deepseek", aiBaseUrl: "https://api.deepseek.com", aiApiKey: "", aiModel: "deepseek-v4-flash", amapWebKey: "", recipeApiSource: "wanwei", recipeApiBaseUrl: "", recipeApiAppId: "", recipeApiSecret: "", wanweiRecipeAppKey: "", recipePageSize: 20, maxWaitSeconds: 180 };
 
 const fetchJsonMock = vi.hoisted(() => vi.fn());
-vi.mock("./_shared.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./_shared")>()),
+vi.mock("../../server/shared.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../server/shared")>()),
   fetchJson: fetchJsonMock
 }));
 
-import handler from "./direct";
+import handler from "../../api/direct";
 
 function responseMock() {
-  const response = {
-    status: vi.fn(), setHeader: vi.fn(), json: vi.fn()
-  } as unknown as VercelResponse;
+  const response = { status: vi.fn(), setHeader: vi.fn(), json: vi.fn() } as unknown as VercelResponse;
   vi.mocked(response.status).mockReturnValue(response);
   vi.mocked(response.setHeader).mockReturnValue(response);
   vi.mocked(response.json).mockReturnValue(response);
   return response;
 }
 
-function request(body: unknown) {
-  return { method: "POST", headers: {}, body } as unknown as VercelRequest;
-}
+function request(body: unknown) { return { method: "POST", headers: {}, body } as unknown as VercelRequest; }
 
 beforeEach(() => fetchJsonMock.mockReset());
 
@@ -58,3 +54,4 @@ describe("developer direct operations", () => {
     expect(detailResponse.json).toHaveBeenCalledWith(expect.objectContaining({ id: "mxnzp_42", steps: ["煮面"] }));
   });
 });
+
