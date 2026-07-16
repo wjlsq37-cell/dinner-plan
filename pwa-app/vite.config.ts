@@ -57,7 +57,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api/backend": {
-        target: "https://dinner-plan.vercel.app",
+        target: "https://dinner-plan-amber.vercel.app",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/backend/, "/api")
       }

@@ -4,7 +4,7 @@ import { assertPublicResolution, json, safeHttpsUrl } from "./_shared.js";
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (request.method !== "GET") return json(response, 405, { proxyReachable: false, backendConfigured: false, message: "请求方式不支持。" });
   try {
-    const base = safeHttpsUrl(process.env.UPSTREAM_API_BASE_URL || "https://dinner-plan.vercel.app");
+    const base = safeHttpsUrl(process.env.UPSTREAM_API_BASE_URL || "https://dinner-plan-amber.vercel.app");
     await assertPublicResolution(base);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10_000);

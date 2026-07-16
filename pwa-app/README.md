@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-`npm run dev` 用于界面开发，并把默认后端请求代理到 `https://dinner-plan.vercel.app`。如需同时测试 `/api/status`、同源代理和开发者直连模式，请运行：
+`npm run dev` 用于界面开发，并把默认后端请求代理到 `https://dinner-plan-amber.vercel.app`。如需同时测试 `/api/status`、同源代理和开发者直连模式，请运行：
 
 ```bash
 npm run dev:full
@@ -33,7 +33,7 @@ npm run test:e2e
    - 推荐项目名：`dinner-plan-pwa`
    - 不要把 `pwa-app` 链接到现有后端项目 `dinner-plan`
 2. Framework Preset 选择 Vite，Build Command 使用 `npm run build`，Output Directory 使用 `dist`。
-3. 设置 `UPSTREAM_API_BASE_URL=https://dinner-plan.vercel.app`。
+3. 设置 `UPSTREAM_API_BASE_URL=https://dinner-plan-amber.vercel.app`。
 4. 如果现有后端启用了 App Token，再设置仅服务端可见的 `UPSTREAM_APP_TOKEN`。
 
 如果本地 `.vercel/project.json` 仍显示 `dinner-plan`，先在仓库根目录重新执行 `vercel link --repo`，把 `pwa-app` 目录关联到 `dinner-plan-pwa`。部署前先确认现有后端的 `/api/health` 正常。

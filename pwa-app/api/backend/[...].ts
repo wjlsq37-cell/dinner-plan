@@ -23,7 +23,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
   }
 
   try {
-    const base = safeHttpsUrl(process.env.UPSTREAM_API_BASE_URL || "https://dinner-plan.vercel.app");
+    const base = safeHttpsUrl(process.env.UPSTREAM_API_BASE_URL || "https://dinner-plan-amber.vercel.app");
     await assertPublicResolution(base);
     const upstream = new URL(`/api/${pieces.map((item) => encodeURIComponent(item)).join("/")}`, base);
     const headers: Record<string, string> = { accept: "application/json" };
@@ -51,4 +51,3 @@ export default async function handler(request: VercelRequest, response: VercelRe
     json(response, 502, { error: "upstream_error", message: safeMessage(error) });
   }
 }
-
