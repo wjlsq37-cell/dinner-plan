@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify((process.env.VERCEL_GIT_COMMIT_SHA || "local").slice(0, 7))
+  },
   plugins: [
     react(),
     VitePWA({
@@ -35,7 +38,7 @@ export default defineConfig({
             urlPattern: /^https:\/\/.*\.(?:png|jpg|jpeg|webp|gif)(?:\?.*)?$/i,
             handler: "StaleWhileRevalidate",
             options: {
-              cacheName: "chidian-images-v2",
+              cacheName: "chidian-images-v3",
               expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 7 },
               cacheableResponse: { statuses: [0, 200] }
             }
