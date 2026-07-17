@@ -26,6 +26,27 @@ test("cook flow persists the last successful query", async ({ page }) => {
   await expect(input).toHaveValue("清淡快手菜");
 });
 
+test("AI mode sends the AI source and does not present a recipe database fallback as generated", async ({ page }) => {
+  let requestedSource = "";
+  await page.route("**/api/backend/recommend/cook", async (route) => {
+    requestedSource = (await route.request().postDataJSON()).cookSource;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ intent: "RECIPE_SINGLE", summary: "已为你找到菜谱", mealPlans: [], recipes: [{ id: "mxnzp_1", name: "土豆牛肉", cuisine: "家常菜", taste: [], tags: [], difficulty: "简单", cookTime: "20 分钟", servings: "2 人份", coverUrl: "", reason: "", ingredients: [], steps: [], tips: "", source: "mxnzp" }], source: "AI_GENERATED", totalMatches: 1 })
+    });
+  });
+  await page.goto("/cook");
+  await page.getByRole("button", { name: "单道菜" }).click();
+  await page.getByPlaceholder(/两荤一素/).fill("土豆牛肉");
+  await page.getByLabel("AI 生成").click();
+  await expect(page.getByText(/已切换到 AI 生成/)).toBeVisible();
+  await page.getByRole("button", { name: "生成推荐" }).click();
+  await expect(page.getByRole("alert")).toContainText("已阻止自动切换到菜谱库");
+  expect(requestedSource).toBe("AI_GENERATED");
+  await expect(page.getByText("已为你找到菜谱", { exact: true })).toHaveCount(0);
+});
+
 test("cook loading keeps the original animation, adds a timer and the whole result card opens", async ({ page }) => {
   await page.route("**/api/backend/recommend/cook", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 350));
@@ -93,6 +114,17 @@ test("manual restaurant location remains available after denial", async ({ page,
   const input = page.getByPlaceholder("城市、商圈、地址或地标");
   await input.fill("杭州西湖");
   await expect(input).toHaveValue("杭州西湖");
+});
+
+test("mobile form controls keep a non-zooming font size", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chrome", "iOS auto-zoom prevention applies to the mobile layout");
+  await page.goto("/nearby");
+  await expect(page.getByPlaceholder(/菜系、预算/)).toHaveCSS("font-size", "16px");
+  await page.getByRole("button", { name: "更改" }).click();
+  await expect(page.getByPlaceholder("城市、商圈、地址或地标")).toHaveCSS("font-size", "16px");
+  await page.goto("/settings/developer");
+  await expect(page.getByLabel("AI Base URL")).toHaveCSS("font-size", "16px");
+  await expect(page.getByLabel("AI 来源")).toHaveCSS("font-size", "16px");
 });
 
 test("nearby search keeps the original animation and shows a live timer", async ({ page }) => {

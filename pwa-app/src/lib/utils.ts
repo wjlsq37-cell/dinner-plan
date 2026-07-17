@@ -71,7 +71,8 @@ export function friendlyError(error: unknown): string {
       timeout: "请求等待超时，请稍后重试。",
       upstream: "上游服务暂时不可用，请稍后再试。",
       invalid_response: "服务返回了无法识别的结果，请稍后再试。",
-      cancelled: "请求已取消，已保留上一次成功结果。"
+      cancelled: "请求已取消，已保留上一次成功结果。",
+      ai_unavailable: "AI 生成暂时不可用，已阻止自动切换到菜谱库；请检查 AI 配置或稍后再试，上一次结果仍会保留。"
     } as const;
     return messages[error.kind];
   }

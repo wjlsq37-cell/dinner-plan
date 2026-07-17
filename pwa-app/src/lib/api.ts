@@ -26,6 +26,14 @@ const isReverseGeocodeResponse: Validator<ReverseGeocodeResponse> = (body): body
   return Boolean(location) && typeof location?.latitude === "number" && typeof location.longitude === "number" && typeof location.text === "string";
 };
 
+function isDatabaseFallback(response: CookRecommendationResponse): boolean {
+  if (response.source !== "AI_GENERATED") return true;
+  return response.recipes.some((recipe) => {
+    const source = String(recipe.source || "").toLowerCase();
+    return /mxnzp|wanwei|database|recipe[_-]?api/.test(source) || /^(mxnzp|wanwei)_/i.test(recipe.id);
+  });
+}
+
 async function requestJson<T>(url: string, init?: RequestInit, signal?: AbortSignal, validate?: Validator<T>): Promise<T> {
   if (!navigator.onLine) throw new ApiError("offline", "当前处于离线状态，联网后再试一次。");
   let response: Response;
@@ -58,10 +66,14 @@ async function requestJson<T>(url: string, init?: RequestInit, signal?: AbortSig
 export class ApiGateway {
   constructor(private settings: DeveloperSettings) {}
 
-  cook(payload: RecommendationRequest, signal?: AbortSignal): Promise<CookRecommendationResponse> {
-    return this.settings.enabled
+  async cook(payload: RecommendationRequest, signal?: AbortSignal): Promise<CookRecommendationResponse> {
+    const result = await (this.settings.enabled
       ? requestJson("/api/direct", { method: "POST", body: JSON.stringify({ operation: "cook", settings: this.settings, payload }) }, signal, isCookResponse)
-      : requestJson("/api/backend/recommend/cook", { method: "POST", body: JSON.stringify(payload) }, signal, isCookResponse);
+      : requestJson("/api/backend/recommend/cook", { method: "POST", body: JSON.stringify(payload) }, signal, isCookResponse));
+    if (payload.cookSource === "AI_GENERATED" && isDatabaseFallback(result)) {
+      throw new ApiError("ai_unavailable", "AI 生成未返回有效结果，已阻止自动切换到菜谱库。");
+    }
+    return result;
   }
 
   cancel(requestId: string): Promise<{ cancelled: boolean; message: string }> {

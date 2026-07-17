@@ -23,6 +23,27 @@ describe("ApiGateway error mapping", () => {
     expect(String(fetchMock.mock.calls[0][0])).not.toContain("secret");
   });
 
+  it("sends the AI source to the backend and rejects a silent recipe database fallback", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      intent: "RECIPE_SINGLE", summary: "已找到菜谱", mealPlans: [],
+      recipes: [{ ...defaultState.recipeCache[0], id: "mxnzp_42", source: "mxnzp" }],
+      source: "AI_GENERATED", totalMatches: 1
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const request = { query: "土豆牛肉", mode: "RECIPE_SINGLE" as const, cookSource: "AI_GENERATED" as const };
+    await expect(new ApiGateway(defaultState.developerSettings).cook(request)).rejects.toMatchObject({ kind: "ai_unavailable" });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ cookSource: "AI_GENERATED" });
+  });
+
+  it("accepts an actual AI cook response", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      intent: "RECIPE_SINGLE", summary: "AI 已生成", mealPlans: [],
+      recipes: [{ ...defaultState.recipeCache[0], id: "ai_recipe_42", source: "ai_generated" }],
+      source: "AI_GENERATED", totalMatches: 1
+    }), { status: 200, headers: { "content-type": "application/json" } })));
+    await expect(new ApiGateway(defaultState.developerSettings).cook({ query: "土豆牛肉", mode: "RECIPE_SINGLE", cookSource: "AI_GENERATED" })).resolves.toMatchObject({ summary: "AI 已生成" });
+  });
+
   it("routes every developer operation through the fixed direct endpoint", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ restaurants: [] }), { status: 200, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
