@@ -26,7 +26,7 @@ test("cook flow persists the last successful query", async ({ page }) => {
   await expect(input).toHaveValue("清淡快手菜");
 });
 
-test("cook loading is prominent and the whole result card opens", async ({ page }) => {
+test("cook loading keeps the original animation, adds a timer and the whole result card opens", async ({ page }) => {
   await page.route("**/api/backend/recommend/cook", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 350));
     await route.fulfill({
@@ -39,8 +39,10 @@ test("cook loading is prominent and the whole result card opens", async ({ page 
   await page.getByRole("button", { name: "单道菜" }).click();
   await page.getByPlaceholder(/两荤一素/).fill("牛肉");
   await page.getByRole("button", { name: "搜索菜谱" }).click();
-  await expect(page.getByRole("button", { name: /正在搜索/ })).toHaveAttribute("aria-busy", "true");
+  await expect(page.getByRole("button", { name: "搜索菜谱" })).toHaveAttribute("aria-busy", "true");
+  await expect(page.getByRole("button", { name: "搜索菜谱" })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "正在菜谱库里筛选" })).toBeVisible();
+  await expect(page.getByText(/已用时 00:/)).toBeVisible();
   await page.getByRole("heading", { name: "清炖牛肉" }).click();
   await expect(page).toHaveURL(/\/recipe\/result-1$/);
   await expect(page.getByRole("heading", { name: "菜谱详情" })).toBeVisible();
@@ -48,10 +50,15 @@ test("cook loading is prominent and the whole result card opens", async ({ page 
 
 test("returning from detail keeps the result card and decoded image", async ({ page }) => {
   await page.route("https://img.test/dish.png", async (route) => route.fulfill({ status: 200, contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nWQAAAAASUVORK5CYII=", "base64") }));
+  await page.route("**/api/backend/recipes/image-result", async (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ id: "image-result", name: "带图菜谱", cuisine: "家常菜", taste: [], tags: [], difficulty: "简单", cookTime: "20 分钟", servings: "2 人份", coverUrl: "", reason: "适合晚餐", ingredients: [{ name: "鸡蛋", amount: "2 个" }], steps: ["完成"], tips: "趁热吃", source: "mxnzp", stepImageUrls: [] })
+  }));
   await page.route("**/api/backend/recommend/cook", async (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
-    body: JSON.stringify({ intent: "RECIPE_SINGLE", summary: "已找到", mealPlans: [], recipes: [{ id: "image-result", name: "带图菜谱", cuisine: "家常菜", taste: [], tags: ["快手"], difficulty: "简单", cookTime: "20 分钟", servings: "2 人份", coverUrl: "https://img.test/dish.png", reason: "适合晚餐", ingredients: [], steps: ["完成"], tips: "趁热吃", source: "seed" }], source: "DATABASE", totalMatches: 1 })
+    body: JSON.stringify({ intent: "RECIPE_SINGLE", summary: "已找到", mealPlans: [], recipes: [{ id: "image-result", name: "带图菜谱", cuisine: "家常菜", taste: [], tags: ["快手"], difficulty: "简单", cookTime: "20 分钟", servings: "2 人份", coverUrl: "https://img.test/dish.png", reason: "适合晚餐", ingredients: [], steps: ["完成"], tips: "趁热吃", source: "mxnzp" }], source: "DATABASE", totalMatches: 1 })
   }));
   await page.goto("/cook");
   await page.getByRole("button", { name: "单道菜" }).click();
@@ -60,6 +67,7 @@ test("returning from detail keeps the result card and decoded image", async ({ p
   const card = page.getByRole("link", { name: "查看菜谱：带图菜谱" });
   await expect(card.locator("img")).toHaveClass(/image-loaded/);
   await card.click();
+  await expect(page.locator(".image-hero img")).toHaveAttribute("src", "https://img.test/dish.png");
   await page.getByRole("button", { name: "返回" }).click();
   const restored = page.getByRole("link", { name: "查看菜谱：带图菜谱" });
   await expect(restored).not.toHaveClass(/card-enter/);
@@ -87,7 +95,7 @@ test("manual restaurant location remains available after denial", async ({ page,
   await expect(input).toHaveValue("杭州西湖");
 });
 
-test("nearby search shows an obvious live loading state", async ({ page }) => {
+test("nearby search keeps the original animation and shows a live timer", async ({ page }) => {
   await page.route("**/api/backend/recommend/restaurant", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 350));
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ restaurants: [], locationUsed: { text: "上海人民广场" }, fallbackReason: "附近暂未找到符合条件的餐厅。" }) });
@@ -95,27 +103,39 @@ test("nearby search shows an obvious live loading state", async ({ page }) => {
   await page.goto("/nearby");
   await page.getByPlaceholder(/菜系、预算/).fill("火锅");
   await page.getByRole("button", { name: "搜索", exact: true }).click();
-  await expect(page.getByRole("button", { name: /搜索中/ })).toHaveAttribute("aria-busy", "true");
+  await expect(page.getByRole("button", { name: "搜索", exact: true })).toHaveAttribute("aria-busy", "true");
+  await expect(page.getByRole("button", { name: "搜索", exact: true })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "正在搜索附近餐厅" })).toBeVisible();
   await expect(page.getByText(/已用时 00:/)).toBeVisible();
 });
 
 test("secure browser location is sent to restaurant search", async ({ page, context }) => {
+  const longAddress = "浙江省杭州市钱塘区白杨街道杭州绿灯物联网科技有限公司生态湿地公园";
   await context.grantPermissions(["geolocation"], { origin: "http://127.0.0.1:4173" });
   await context.setGeolocation({ latitude: 30.25, longitude: 120.16 });
   await page.route("**/api/location/reverse", async (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
-    body: JSON.stringify({ location: { latitude: 30.25, longitude: 120.16, text: "浙江省杭州市上城区湖滨街道" } })
+    body: JSON.stringify({ location: { latitude: 30.25, longitude: 120.16, text: longAddress } })
   }));
   await page.route("**/api/backend/recommend/restaurant", async (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
-    body: JSON.stringify({ restaurants: [], locationUsed: { latitude: 30.25, longitude: 120.16, text: "浙江省杭州市上城区湖滨街道" }, fallbackReason: "附近暂未找到符合条件的餐厅。" })
+    body: JSON.stringify({ restaurants: [], locationUsed: { latitude: 30.25, longitude: 120.16, text: longAddress }, fallbackReason: "附近暂未找到符合条件的餐厅。" })
   }));
   await page.goto("/nearby");
   await page.getByRole("button", { name: "定位", exact: true }).click();
-  await expect(page.getByText("浙江省杭州市上城区湖滨街道", { exact: true })).toBeVisible();
+  const locationText = page.locator(".current-location span");
+  await expect(locationText).toHaveText(longAddress);
+  await expect(locationText).toHaveCSS("text-overflow", "ellipsis");
+  const header = await page.locator(".nearby-header").boundingBox();
+  const changeButton = await page.getByRole("button", { name: "更改" }).boundingBox();
+  const searchBox = await page.locator(".nearby-search").boundingBox();
+  expect(header).not.toBeNull();
+  expect(changeButton).not.toBeNull();
+  expect(searchBox).not.toBeNull();
+  expect(changeButton!.x + changeButton!.width).toBeLessThanOrEqual(header!.x + header!.width + 1);
+  expect(searchBox!.x + searchBox!.width).toBeLessThanOrEqual(header!.x + header!.width + 1);
 });
 
 test("map return resumes the existing PWA controls", async ({ page, context }) => {
@@ -135,6 +155,6 @@ test("map return resumes the existing PWA controls", async ({ page, context }) =
 test("bottom navigation uses the compact content height", async ({ page }) => {
   await page.goto("/");
   const height = await page.locator(".bottom-nav").evaluate((element) => Number.parseFloat(getComputedStyle(element).height));
-  expect(height).toBeLessThanOrEqual(58);
+  expect(height).toBeLessThanOrEqual(50);
   await expect(page.locator(".bottom-nav a").first()).toHaveCSS("min-height", "44px");
 });

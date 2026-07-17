@@ -1,4 +1,4 @@
-import type { Restaurant, RestaurantSort, SavedRef } from "../types";
+import type { Recipe, Restaurant, RestaurantSort, SavedRef } from "../types";
 import { ApiError } from "./api";
 
 export function parseDistanceMeters(value: string): number | null {
@@ -38,6 +38,26 @@ export function formatElapsed(seconds: number): string {
 export function appendQuery(source: string, value: string): string {
   if (!source.trim()) return value;
   return source.includes(value) ? source : `${source.trim()}，${value}`;
+}
+
+export function mergeRecipeRecords(current: Recipe[], incoming: Recipe[], fallbacks: Recipe[] = []): Recipe[] {
+  const pool = [...current, ...fallbacks];
+  const merged = incoming.map((next) => {
+    const previous = pool.find((item) => item.id === next.id);
+    if (!previous) return next;
+    return {
+      ...previous,
+      ...next,
+      coverUrl: next.coverUrl?.trim() ? next.coverUrl : previous.coverUrl,
+      taste: next.taste?.length ? next.taste : previous.taste,
+      tags: next.tags?.length ? next.tags : previous.tags,
+      ingredients: next.ingredients?.length ? next.ingredients : previous.ingredients,
+      steps: next.steps?.length ? next.steps : previous.steps,
+      tips: next.tips?.trim() ? next.tips : previous.tips,
+      stepImageUrls: next.stepImageUrls?.some(Boolean) ? next.stepImageUrls : previous.stepImageUrls
+    };
+  });
+  return [...merged, ...current].filter((item, index, all) => all.findIndex((candidate) => candidate.id === item.id) === index);
 }
 
 export function friendlyError(error: unknown): string {

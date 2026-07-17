@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { addHistory, parseDistanceMeters, sortRestaurants, toggleSaved, toggleString } from "./utils";
-import type { Restaurant, SavedRef } from "../types";
+import { addHistory, mergeRecipeRecords, parseDistanceMeters, sortRestaurants, toggleSaved, toggleString } from "./utils";
+import type { Recipe, Restaurant, SavedRef } from "../types";
 
 const restaurant = (id: string, distance: string, rating: string): Restaurant => ({ id, source: "test", name: id, category: "餐饮", tags: [], address: "", distance, rating, price: "", open: "", phone: "", coverUrl: "", reason: "" });
 
@@ -23,5 +23,18 @@ describe("preference selection", () => {
     const source = ["香菜", "海鲜"];
     toggleString(source, "香菜");
     expect(source).toEqual(["香菜", "海鲜"]);
+  });
+});
+
+describe("recipe cache merging", () => {
+  it("keeps the card cover and rich fields when detail data omits them", () => {
+    const card = { id: "r1", name: "土豆牛肉", cuisine: "家常", taste: [], tags: ["mxnzp"], difficulty: "简单", cookTime: "20 分钟", servings: "2 人份", coverUrl: "https://img.test/card.jpg", reason: "", ingredients: [{ name: "牛肉", amount: "适量" }], steps: ["炖煮"], tips: "小火", stepImageUrls: ["https://img.test/step.jpg"] } satisfies Recipe;
+    const detail = { ...card, coverUrl: "", tags: [], ingredients: [], steps: [], tips: "", stepImageUrls: [] };
+    expect(mergeRecipeRecords([card], [detail])[0]).toMatchObject({ coverUrl: card.coverUrl, tags: card.tags, ingredients: card.ingredients, steps: card.steps, tips: card.tips, stepImageUrls: card.stepImageUrls });
+  });
+  it("keeps cached rich fields when an upstream detail omits optional arrays at runtime", () => {
+    const card = { id: "r2", name: "土豆炖牛肉", cuisine: "家常", taste: ["咸鲜"], tags: ["mxnzp"], difficulty: "简单", cookTime: "30 分钟", servings: "2 人份", coverUrl: "https://img.test/card-2.jpg", reason: "", ingredients: [{ name: "土豆", amount: "2 个" }], steps: ["炖煮"], tips: "小火" } satisfies Recipe;
+    const incomplete = { id: "r2", name: "土豆炖牛肉", coverUrl: "" } as Recipe;
+    expect(mergeRecipeRecords([card], [incomplete])[0]).toMatchObject({ coverUrl: card.coverUrl, taste: card.taste, tags: card.tags, ingredients: card.ingredients, steps: card.steps });
   });
 });
