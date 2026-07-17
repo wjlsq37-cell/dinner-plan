@@ -22,6 +22,6 @@ describe("browser location", () => {
     secure(true);
     Object.defineProperty(navigator, "permissions", { configurable: true, value: { query: vi.fn().mockResolvedValue({ state: "granted" }) } });
     Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success: PositionCallback) => success({ coords: { latitude: 30.25, longitude: 120.16 } } as GeolocationPosition) } });
-    await expect(requestBrowserLocation()).resolves.toEqual({ latitude: 30.25, longitude: 120.16, text: "当前位置" });
+    await expect(requestBrowserLocation()).resolves.toEqual({ latitude: 30.25, longitude: 120.16, text: "" });
   });
 });

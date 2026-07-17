@@ -35,6 +35,14 @@ describe("ApiGateway error mapping", () => {
     expect(fetchMock.mock.calls.every((call) => call[0] === "/api/direct")).toBe(true);
   });
 
+  it("uses the fixed same-origin reverse geocode endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ location: { latitude: 30.25, longitude: 120.16, text: "杭州市湖滨街道" } }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await new ApiGateway(defaultState.developerSettings).reverseGeocode({ latitude: 30.25, longitude: 120.16 });
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/location/reverse");
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ latitude: 30.25, longitude: 120.16 });
+  });
+
   it("reports a missing proxy route as a deployment problem", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "proxy_route_missing", message: "missing" }), { status: 404, headers: { "content-type": "application/json" } })));
     await expect(new ApiGateway(defaultState.developerSettings).cook({ query: "牛肉", mode: "RECIPE_SINGLE" })).rejects.toMatchObject({ kind: "proxy_unreachable", status: 404 });

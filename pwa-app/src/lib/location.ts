@@ -28,7 +28,7 @@ export async function requestBrowserLocation(): Promise<LocationValue> {
     }
   }
   return new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(
-    (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, text: "当前位置" }),
+    (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, text: "" }),
     (error) => {
       const kind: LocationErrorKind = error.code === 1 ? "permission_denied" : error.code === 2 ? "unavailable" : error.code === 3 ? "timeout" : "unknown";
       reject(new LocationRequestError(kind, locationErrorMessage(kind)));

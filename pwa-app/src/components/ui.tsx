@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import { ArrowLeft, ChefHat, Heart, Home, LocateFixed, Map, Settings, Sparkles } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { CachedImage } from "./cached-image";
 
 export function Page({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <main className={`page ${className}`}>{children}</main>;
@@ -22,14 +23,29 @@ export function BottomNav() {
   )}</nav>;
 }
 
-export function Card({ children, className = "", delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
-  return <section className={`card card-enter ${className}`} style={{ animationDelay: `${Math.min(delay, 220)}ms` }}>{children}</section>;
+export function Card({ children, className = "", delay = 0, animate = true, onActivate, ariaLabel }: { children: ReactNode; className?: string; delay?: number; animate?: boolean; onActivate?: () => void; ariaLabel?: string }) {
+  const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (!onActivate || event.currentTarget !== event.target || (event.key !== "Enter" && event.key !== " ")) return;
+    event.preventDefault();
+    onActivate();
+  };
+  return <section
+    className={`card ${animate ? "card-enter" : ""} ${onActivate ? "interactive-card" : ""} ${className}`}
+    style={animate ? { animationDelay: `${Math.min(delay, 220)}ms` } : undefined}
+    role={onActivate ? "link" : undefined}
+    tabIndex={onActivate ? 0 : undefined}
+    aria-label={ariaLabel}
+    onClick={onActivate}
+    onKeyDown={onKeyDown}
+  >{children}</section>;
 }
 
 export function Chips({ items, selected = [], onToggle, tone = "warm" }: { items: string[]; selected?: string[]; onToggle?: (value: string) => void; tone?: "warm" | "mint" }) {
   return <div className="chips">{items.map((item) => {
     const isSelected = selected.includes(item);
-    return <button key={item} type="button" aria-pressed={isSelected} className={`chip ${tone} ${isSelected ? "selected" : ""}`} onClick={() => onToggle?.(item)}>{item}</button>;
+    return onToggle
+      ? <button key={item} type="button" aria-pressed={isSelected} className={`chip ${tone} ${isSelected ? "selected" : ""}`} onClick={() => onToggle(item)}>{item}</button>
+      : <span key={item} className={`chip ${tone} ${isSelected ? "selected" : ""}`}>{item}</span>;
   })}</div>;
 }
 
@@ -40,11 +56,11 @@ export function EmptyState({ icon = <ChefHat/>, title, message, action, actionTe
 export function LoadingPanel({ kind, elapsed, onCancel }: { kind: "ai" | "database" | "location"; elapsed?: string; onCancel?: () => void }) {
   const title = kind === "ai" ? "AI 正在推演这一桌饭" : kind === "location" ? "正在搜索附近餐厅" : "正在菜谱库里筛选";
   const Icon = kind === "location" ? LocateFixed : kind === "ai" ? Sparkles : ChefHat;
-  return <Card className={`loading-panel ${kind}`}><span className="loading-icon"><Icon /></span><div><h2>{title}</h2><p>{elapsed ? `已用时 ${elapsed}，可以随时取消并保留上一次成功结果。` : "马上就好，正在整理更合适的结果。"}</p>{onCancel && <button className="text-button" onClick={onCancel}>取消生成</button>}</div></Card>;
+  return <Card className={`loading-panel ${kind}`} animate={false}><span className="loading-icon" aria-hidden="true"><Icon /></span><div role="status" aria-live="polite" aria-busy="true"><h2>{title}</h2><p>{elapsed ? `已用时 ${elapsed}${onCancel ? "，可以随时取消并保留上一次成功结果。" : "，正在整理更合适的结果。"}` : "马上就好，正在整理更合适的结果。"}</p>{onCancel && <button className="text-button" onClick={onCancel}>取消生成</button>}</div></Card>;
 }
 
 export function ImageHero({ src, title, tone = "warm" }: { src?: string; title: string; tone?: "warm" | "mint" }) {
-  return <div className={`image-hero ${tone}`}>{src ? <img src={src} alt=""/> : <ChefHat aria-hidden="true"/>}<div className="image-hero-copy"><h1>{title}</h1></div></div>;
+  return <div className={`image-hero ${tone}`}><CachedImage src={src} alt="" priority fallback={<ChefHat aria-hidden="true"/>}/><div className="image-hero-copy"><h1>{title}</h1></div></div>;
 }
 
 export function Status({ message, tone = "info" }: { message?: string | null; tone?: "info" | "error" | "success" }) {

@@ -1,19 +1,25 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { CircleHelp, Database, Heart, Info, LocateFixed, MapPin, Plus, RefreshCw, Save, Search, Settings as SettingsIcon, SlidersHorizontal, Sparkles, Star, Trash2, Utensils, X } from "lucide-react";
+import { CircleHelp, Database, Heart, Info, LoaderCircle, LocateFixed, MapPin, Plus, RefreshCw, Save, Search, Settings as SettingsIcon, SlidersHorizontal, Sparkles, Star, Trash2, Utensils, X } from "lucide-react";
 import { ApiGateway } from "./lib/api";
 import { requestBrowserLocation, LocationRequestError } from "./lib/location";
 import { dismissPwaUpdate, subscribePwaUpdate, type PwaUpdater } from "./lib/pwa-update";
 import { addHistory, appendQuery, formatElapsed, friendlyError, sortRestaurants, toggleSaved, toggleString } from "./lib/utils";
 import { defaultState, loadState, saveState } from "./lib/store";
+import { markExternalNavigation, resumeExternalNavigation } from "./lib/app-resume";
+import { readPageMemory, restorePageScroll, writePageMemory } from "./lib/page-memory";
 import { seedMealPlans, seedRecipes, seedRestaurants } from "./data/seed";
 import type { CookSource, DeveloperSettings, LocationValue, MealPlan, PersistedState, Recipe, RecommendMode, Restaurant, RestaurantSort, SavedKind, SavedRef, ServiceStatus, UserPreference } from "./types";
 import { BottomNav, Card, Chips, EmptyState, ImageHero, LoadingPanel, Page, Status, TopBar } from "./components/ui";
 import { MealCard, RecipeCard, RestaurantCard } from "./components/cards";
+import { CachedImage } from "./components/cached-image";
 
 interface AppContextValue {
   state: PersistedState;
   patch: (patch: Partial<PersistedState>) => void;
+  mergeMeals: (items: MealPlan[]) => void;
+  mergeRecipes: (items: Recipe[]) => void;
+  mergeRestaurants: (items: Restaurant[]) => void;
   updatePreferences: (value: Partial<UserPreference> | ((current: UserPreference) => Partial<UserPreference>)) => void;
   toggleTaste: (value: string) => void;
   toggleAvoid: (value: string) => void;
@@ -36,6 +42,9 @@ function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => { loadState().then((saved) => { setState(saved); setReady(true); }); }, []);
   useEffect(() => { if (ready) void saveState(state); }, [state, ready]);
   const patch = useCallback((value: Partial<PersistedState>) => setState((current) => ({ ...current, ...value })), []);
+  const mergeMeals = useCallback((items: MealPlan[]) => setState((current) => ({ ...current, mealCache: uniqueById([...items, ...current.mealCache]) })), []);
+  const mergeRecipes = useCallback((items: Recipe[]) => setState((current) => ({ ...current, recipeCache: uniqueById([...items, ...current.recipeCache]).slice(0, 80) })), []);
+  const mergeRestaurants = useCallback((items: Restaurant[]) => setState((current) => ({ ...current, restaurantCache: uniqueById([...items, ...current.restaurantCache]) })), []);
   const updatePreferences = useCallback<AppContextValue["updatePreferences"]>((value) => setState((current) => {
     const next = typeof value === "function" ? value(current.preferences) : value;
     return { ...current, preferences: { ...current.preferences, ...next } };
@@ -47,12 +56,12 @@ function AppProvider({ children }: { children: ReactNode }) {
   const toggle = useCallback((ref: SavedRef) => setState((current) => ({ ...current, saved: toggleSaved(current.saved, ref) })), []);
   const viewed = useCallback((ref: SavedRef) => setState((current) => ({ ...current, history: addHistory(current.history, ref) })), []);
   const context = useMemo<AppContextValue>(() => ({
-    state, patch, updatePreferences, toggleTaste, toggleAvoid, setDefaultDistance, updateDeveloperSettings, toggle, viewed,
+    state, patch, mergeMeals, mergeRecipes, mergeRestaurants, updatePreferences, toggleTaste, toggleAvoid, setDefaultDistance, updateDeveloperSettings, toggle, viewed,
     isSaved: (ref) => state.saved.some((item) => item.kind === ref.kind && item.id === ref.id),
     findMeal: (id) => [...state.mealCache, ...state.lastMealPlans, ...seedMealPlans].find((item) => item.id === id),
     findRecipe: (id) => [...state.recipeCache, ...state.lastRecipes, ...seedRecipes].find((item) => item.id === id),
     findRestaurant: (id) => [...state.restaurantCache, ...state.lastRestaurants, ...seedRestaurants].find((item) => item.id === id)
-  }), [state, patch, updatePreferences, toggleTaste, toggleAvoid, setDefaultDistance, updateDeveloperSettings, toggle, viewed]);
+  }), [state, patch, mergeMeals, mergeRecipes, mergeRestaurants, updatePreferences, toggleTaste, toggleAvoid, setDefaultDistance, updateDeveloperSettings, toggle, viewed]);
   if (!ready) return <div className="splash"><img src="/icon.svg" alt=""/><h1>吃点啥</h1><p>正在摆好今天的餐桌…</p></div>;
   return <AppContext.Provider value={context}>{children}</AppContext.Provider>;
 }
@@ -62,15 +71,18 @@ function Layout({ children }: { children: ReactNode }) {
   const [updater, setUpdater] = useState<PwaUpdater | null>(null);
   useEffect(() => {
     const onOnline = () => setOnline(true); const onOffline = () => setOnline(false);
+    const onResume = () => { setOnline(navigator.onLine); resumeExternalNavigation(); };
+    const onVisibility = () => { if (document.visibilityState === "visible") onResume(); };
     const unsubscribeUpdate = subscribePwaUpdate((next) => setUpdater(() => next));
     window.addEventListener("online", onOnline); window.addEventListener("offline", onOffline);
-    return () => { window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); unsubscribeUpdate(); };
+    window.addEventListener("pageshow", onResume); document.addEventListener("visibilitychange", onVisibility);
+    return () => { window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); window.removeEventListener("pageshow", onResume); document.removeEventListener("visibilitychange", onVisibility); unsubscribeUpdate(); };
   }, []);
   return <div className="app-shell">{!online && <div className="offline-banner">当前离线：可继续查看本地收藏、历史和详情</div>}{updater && <div className="update-banner"><span>发现新版本，是否立即更新？</span><div><button onClick={() => { dismissPwaUpdate(); void updater(true); }}>更新</button><button onClick={() => { dismissPwaUpdate(); setUpdater(null); }}>稍后</button></div></div>}<div className="content-shell">{children}</div><BottomNav/></div>;
 }
 
 function HomePage() {
-  const { state, isSaved, toggle, viewed, patch } = useApp(); const navigate = useNavigate();
+  const { state, isSaved, toggle, viewed, mergeRecipes, mergeRestaurants } = useApp(); const navigate = useNavigate();
   const [loading, setLoading] = useState(false); const [error, setError] = useState("");
   const [decision, setDecision] = useState<{ recipe?: Recipe; restaurant?: Restaurant }>({});
   const decide = async () => {
@@ -85,7 +97,7 @@ function HomePage() {
       const restaurants = nearby.status === "fulfilled" ? nearby.value.restaurants : state.lastRestaurants;
       const recipe = recipes[Math.floor(Math.random() * recipes.length)]; const restaurant = restaurants[Math.floor(Math.random() * restaurants.length)];
       setDecision({ recipe, restaurant });
-      patch({ recipeCache: uniqueById([...recipes, ...state.recipeCache]).slice(0, 80), restaurantCache: uniqueById([...restaurants, ...state.restaurantCache]) });
+      mergeRecipes(recipes); mergeRestaurants(restaurants);
       if (!recipe && !restaurant) setError("暂时没找到合适结果，可以稍后再试。");
     } catch (cause) { setError(friendlyError(cause)); } finally { setLoading(false); }
   };
@@ -96,14 +108,18 @@ function HomePage() {
     <Card className="decision-card"><div className="decision-kicker"><span><Sparkles/></span><b>今日决策</b><small>少纠结一点</small></div><h2>{greeting}</h2><p>少一点选择压力，先给你一个可以马上看的答案。</p><button className="button full" disabled={loading} onClick={decide}><Sparkles/>{loading ? "正在生成今日灵感..." : "帮我决定吃什么"}</button></Card>
     <Status message={error} tone="error"/>
     <div className="home-actions"><button className="home-action" onClick={() => navigate("/cook")}><span className="food"><Utensils/></span><b>自己做</b><small>菜谱和成套晚餐</small></button><button className="home-action" onClick={() => navigate("/nearby")}><span className="place"><MapPin/></span><b>附近吃</b><small>按位置找顺路好店</small></button></div>
-    <section className="inspiration"><div className="section-heading"><div><h2>今日灵感</h2><p>一个下厨方案，一个附近选择</p></div><Sparkles/></div>{loading ? <LoadingPanel kind="ai"/> : decision.recipe || decision.restaurant ? <div className="results">{decision.recipe && <RecipeCard item={decision.recipe} saved={isSaved({ kind: "recipe", id: decision.recipe.id })} toggle={toggle} open={() => { viewed({ kind: "recipe", id: decision.recipe!.id }); navigate(`/recipe/${decision.recipe!.id}`); }}/>} {decision.restaurant && <RestaurantCard item={decision.restaurant} saved={isSaved({ kind: "restaurant", id: decision.restaurant.id })} toggle={toggle} open={() => { viewed({ kind: "restaurant", id: decision.restaurant!.id }); navigate(`/restaurant/${decision.restaurant!.id}`); }}/>}</div> : <Card className="inspiration-empty"><span><Sparkles/></span><div><b>今天还没拍板</b><p>点上方按钮后，这里会出现一菜一店</p></div></Card>}</section>
+    <section className="inspiration"><div className="section-heading"><div><h2>今日灵感</h2><p>一个下厨方案，一个附近选择</p></div><Sparkles/></div>{loading ? <LoadingPanel kind="ai"/> : decision.recipe || decision.restaurant ? <div className="results">{decision.recipe && <RecipeCard item={decision.recipe} priority saved={isSaved({ kind: "recipe", id: decision.recipe.id })} toggle={toggle} open={() => { viewed({ kind: "recipe", id: decision.recipe!.id }); navigate(`/recipe/${decision.recipe!.id}`); }}/>} {decision.restaurant && <RestaurantCard item={decision.restaurant} priority saved={isSaved({ kind: "restaurant", id: decision.restaurant.id })} toggle={toggle} open={() => { viewed({ kind: "restaurant", id: decision.restaurant!.id }); navigate(`/restaurant/${decision.restaurant!.id}`); }}/>}</div> : <Card className="inspiration-empty"><span><Sparkles/></span><div><b>今天还没拍板</b><p>点上方按钮后，这里会出现一菜一店</p></div></Card>}</section>
   </Page></Layout>;
 }
 
 function CookPage() {
-  const { state, patch, toggle, isSaved, viewed } = useApp(); const navigate = useNavigate();
-  const [query, setQuery] = useState(state.lastCookQuery); const [mode, setMode] = useState<RecommendMode>(state.lastCookMode); const [source, setSource] = useState<CookSource>(state.lastCookSource);
+  type CookMemory = { scrollY: number; hasRenderedResults: boolean; query: string; mode: RecommendMode; source: CookSource };
+  const { state, patch, mergeMeals, mergeRecipes, toggle, isSaved, viewed } = useApp(); const navigate = useNavigate();
+  const restored = useRef(readPageMemory<CookMemory>("cook"));
+  const [query, setQuery] = useState(restored.current?.query ?? state.lastCookQuery); const [mode, setMode] = useState<RecommendMode>(restored.current?.mode ?? state.lastCookMode); const [source, setSource] = useState<CookSource>(restored.current?.source ?? state.lastCookSource);
   const [loading, setLoading] = useState(false); const [elapsed, setElapsed] = useState(0); const [summary, setSummary] = useState(""); const [status, setStatus] = useState(state.lastMealPlans.length || state.lastRecipes.length ? "" : "输入需求，开始生成今天的菜单。"); const controller = useRef<AbortController | null>(null); const requestId = useRef("");
+  const [resultRevision, setResultRevision] = useState(0); const viewRef = useRef({ query, mode, source }); viewRef.current = { query, mode, source };
+  useEffect(() => { restorePageScroll("cook"); return () => writePageMemory<CookMemory>("cook", { ...viewRef.current, scrollY: window.scrollY, hasRenderedResults: true }); }, []);
   useEffect(() => { if (!loading) return; const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000); return () => window.clearInterval(timer); }, [loading]);
   const search = async (broadSearch = false) => {
     if (!query.trim() && !broadSearch) return setStatus("请输入想吃什么，或点击重新推荐。");
@@ -112,64 +128,77 @@ function CookPage() {
     try {
       const result = await new ApiGateway(state.developerSettings).cook({ query, mode, cookSource: source, requestId: requestId.current, broadSearch, preferences: state.preferences }, controller.current.signal);
       const meals = result.mealPlans || []; const recipes = result.recipes || []; setSummary(result.summary || ""); setStatus(result.fallbackReason || (meals.length || recipes.length ? "" : "没有找到合适结果，换个关键词试试。"));
-      patch({ lastCookQuery: query, lastCookMode: mode, lastCookSource: source, lastMealPlans: meals, lastRecipes: recipes, mealCache: uniqueById([...meals, ...state.mealCache]), recipeCache: uniqueById([...recipes, ...state.recipeCache]).slice(0, 80) });
+      patch({ lastCookQuery: query, lastCookMode: mode, lastCookSource: source, lastMealPlans: meals, lastRecipes: recipes }); mergeMeals(meals); mergeRecipes(recipes); setResultRevision((value) => value + 1);
     } catch (cause) { setStatus(friendlyError(cause)); } finally { setLoading(false); }
   };
   const cancel = async () => { controller.current?.abort(); setLoading(false); setStatus("请求已取消，已保留上一次成功结果。"); await new ApiGateway(state.developerSettings).cancel(requestId.current).catch(() => undefined); };
   return <Layout><Page><TopBar title="在家做点啥" subtitle="菜谱和成套晚餐" back/>
-    <Card className="search-panel"><div className="segmented"><button className={mode === "RECIPE_COMBO" ? "active" : ""} onClick={() => setMode("RECIPE_COMBO")}>组合菜单</button><button className={mode === "RECIPE_SINGLE" ? "active" : ""} onClick={() => setMode("RECIPE_SINGLE")}>单道菜</button></div><label className="search-field"><Search/><textarea value={query} onChange={(event) => setQuery(event.target.value)} placeholder="例如：两荤一素、一汤、主食、微辣" rows={3}/></label><Chips items={["两荤一素", "一汤", "主食", "微辣", "快手菜"]} onToggle={(value) => setQuery((current) => appendQuery(current, value))}/><div className="source-row"><label><input type="radio" checked={source === "DATABASE"} onChange={() => setSource("DATABASE")}/><Database/> 菜谱库</label><label><input type="radio" checked={source === "AI_GENERATED"} onChange={() => setSource("AI_GENERATED")}/><Sparkles/> AI 生成</label></div><div className="button-row"><button className="button grow" onClick={() => search(false)} disabled={loading}>{source === "AI_GENERATED" ? "生成推荐" : "搜索菜谱"}</button><button className="button secondary" onClick={() => search(true)} disabled={loading}><RefreshCw/>重新推荐</button></div></Card>
-    {loading && <LoadingPanel kind={source === "AI_GENERATED" ? "ai" : "database"} elapsed={formatElapsed(elapsed)} onCancel={cancel}/>}<Status message={status} tone={status.includes("取消") || status.includes("输入") ? "info" : "error"}/>{summary && <Status message={summary}/>}<div className="results">{mode === "RECIPE_COMBO" && state.lastMealPlans.map((item, index) => <MealCard key={item.id} item={item} saved={isSaved({ kind: "meal", id: item.id })} toggle={toggle} delay={index * 55} open={() => { viewed({ kind: "meal", id: item.id }); navigate(`/meal/${item.id}`); }}/>) }{state.lastRecipes.map((item, index) => <RecipeCard key={item.id} item={item} saved={isSaved({ kind: "recipe", id: item.id })} toggle={toggle} delay={index * 55} open={() => { viewed({ kind: "recipe", id: item.id }); navigate(`/recipe/${item.id}`); }}/>)}</div>
+    <Card className="search-panel"><div className="segmented"><button className={mode === "RECIPE_COMBO" ? "active" : ""} onClick={() => setMode("RECIPE_COMBO")}>组合菜单</button><button className={mode === "RECIPE_SINGLE" ? "active" : ""} onClick={() => setMode("RECIPE_SINGLE")}>单道菜</button></div><label className="search-field"><Search/><textarea value={query} onChange={(event) => setQuery(event.target.value)} placeholder="例如：两荤一素、一汤、主食、微辣" rows={3}/></label><Chips items={["两荤一素", "一汤", "主食", "微辣", "快手菜"]} onToggle={(value) => setQuery((current) => appendQuery(current, value))}/><div className="source-row"><label><input type="radio" checked={source === "DATABASE"} onChange={() => setSource("DATABASE")}/><Database/> 菜谱库</label><label><input type="radio" checked={source === "AI_GENERATED"} onChange={() => setSource("AI_GENERATED")}/><Sparkles/> AI 生成</label></div><div className="button-row"><button className="button grow" onClick={() => search(false)} disabled={loading} aria-busy={loading}>{loading && <LoaderCircle className="button-spinner"/>}{loading ? source === "AI_GENERATED" ? "正在生成" : "正在搜索" : source === "AI_GENERATED" ? "生成推荐" : "搜索菜谱"}</button><button className="button secondary" onClick={() => search(true)} disabled={loading}><RefreshCw/>重新推荐</button></div></Card>
+    {loading && <LoadingPanel kind={source === "AI_GENERATED" ? "ai" : "database"} elapsed={formatElapsed(elapsed)} onCancel={cancel}/>}<Status message={status} tone={status.includes("取消") || status.includes("输入") ? "info" : "error"}/>{summary && <Status message={summary}/>}<div className="results">{mode === "RECIPE_COMBO" && state.lastMealPlans.map((item, index) => <MealCard key={item.id} item={item} priority={index < 2} animate={resultRevision > 0 || !restored.current?.hasRenderedResults} saved={isSaved({ kind: "meal", id: item.id })} toggle={toggle} delay={index * 55} open={() => { viewed({ kind: "meal", id: item.id }); navigate(`/meal/${item.id}`); }}/>) }{state.lastRecipes.map((item, index) => <RecipeCard key={item.id} item={item} priority={index < 2} animate={resultRevision > 0 || !restored.current?.hasRenderedResults} saved={isSaved({ kind: "recipe", id: item.id })} toggle={toggle} delay={index * 55} open={() => { viewed({ kind: "recipe", id: item.id }); navigate(`/recipe/${item.id}`); }}/>)}</div>
   </Page></Layout>;
 }
 
 function NearbyPage() {
-  const { state, patch, toggle, isSaved, viewed } = useApp(); const navigate = useNavigate();
-  const [query, setQuery] = useState(state.lastRestaurantQuery); const [location, setLocation] = useState(state.location.text || ""); const [editingLocation, setEditingLocation] = useState(false); const [sort, setSort] = useState<RestaurantSort>("relevance"); const [loading, setLoading] = useState(false); const [status, setStatus] = useState(""); const controller = useRef<AbortController | null>(null);
-  const search = async (nextLocation: LocationValue = { ...state.location, text: location }, broadSearch = false) => {
+  type NearbyMemory = { scrollY: number; hasRenderedResults: boolean; query: string; location: string; sort: RestaurantSort };
+  const { state, patch, mergeRestaurants, toggle, isSaved, viewed } = useApp(); const navigate = useNavigate();
+  const restored = useRef(readPageMemory<NearbyMemory>("nearby"));
+  const [query, setQuery] = useState(restored.current?.query ?? state.lastRestaurantQuery); const [location, setLocation] = useState(restored.current?.location ?? state.location.text ?? ""); const [editingLocation, setEditingLocation] = useState(false); const [sort, setSort] = useState<RestaurantSort>(restored.current?.sort ?? "relevance"); const [loading, setLoading] = useState(false); const [elapsed, setElapsed] = useState(0); const [status, setStatus] = useState(""); const [resultRevision, setResultRevision] = useState(0); const controller = useRef<AbortController | null>(null);
+  const viewRef = useRef({ query, location, sort }); viewRef.current = { query, location, sort };
+  useEffect(() => { restorePageScroll("nearby"); return () => writePageMemory<NearbyMemory>("nearby", { ...viewRef.current, scrollY: window.scrollY, hasRenderedResults: true }); }, []);
+  useEffect(() => { if (!loading) return; const timer = window.setInterval(() => setElapsed((value) => value + 1), 1000); return () => window.clearInterval(timer); }, [loading]);
+  const search = async (nextLocation: LocationValue = { ...state.location, text: location }, broadSearch = false, notice = "") => {
     if (!query.trim() && !broadSearch) return setStatus("请输入菜系、预算、用餐场景或距离。");
-    if (!navigator.onLine) return setStatus("当前处于离线状态，仍可浏览上一次结果。");
-    controller.current?.abort(); controller.current = new AbortController(); setLoading(true); setStatus("");
+    if (!navigator.onLine) { setLoading(false); return setStatus("当前处于离线状态，仍可浏览上一次结果。"); }
+    controller.current?.abort(); controller.current = new AbortController(); setLoading(true); setElapsed(0); setStatus("");
     try {
       const result = await new ApiGateway(state.developerSettings).restaurants({ query, mode: "RESTAURANT", location: nextLocation, preferences: state.preferences, broadSearch }, controller.current.signal);
-      const items = result.restaurants || []; const used = result.locationUsed || nextLocation; setLocation(used.text || location); setEditingLocation(false); setStatus(result.fallbackReason || (items.length ? "根据搜索内容、距离和评分为你整理附近餐厅" : "附近暂未找到符合条件的餐厅。")); patch({ location: used, lastRestaurantQuery: query, lastRestaurants: items, restaurantCache: uniqueById([...items, ...state.restaurantCache]) });
+      const items = result.restaurants || []; const used = result.locationUsed || nextLocation; const nextText = used.text || nextLocation.text || location; setLocation(nextText); setEditingLocation(false); const resultStatus = result.fallbackReason || (items.length ? "根据搜索内容、距离和评分为你整理附近餐厅" : "附近暂未找到符合条件的餐厅。"); setStatus(notice ? `${notice} ${resultStatus}` : resultStatus); patch({ location: { ...used, text: nextText }, lastRestaurantQuery: query, lastRestaurants: items }); mergeRestaurants(items); setResultRevision((value) => value + 1);
     } catch (cause) { setStatus(friendlyError(cause)); } finally { setLoading(false); }
   };
   const locate = async () => {
-    setLoading(true); setStatus("");
-    try { const next = await requestBrowserLocation(); setLocation("当前位置"); patch({ location: next }); await search(next, true); }
+    setLoading(true); setElapsed(0); setStatus("");
+    try {
+      const coordinates = await requestBrowserLocation(); const latitude = Number(coordinates.latitude); const longitude = Number(coordinates.longitude); const gateway = new ApiGateway(state.developerSettings);
+      let next: LocationValue; let notice = "";
+      try { next = (await gateway.reverseGeocode({ latitude, longitude })).location; }
+      catch { next = { latitude, longitude, text: `已定位（${latitude.toFixed(4)}, ${longitude.toFixed(4)}）` }; notice = "已获得定位坐标，但暂时无法解析地址名称。"; }
+      setLocation(next.text || ""); patch({ location: next }); await search(next, true, notice);
+    }
     catch (error) { setLoading(false); setStatus(error instanceof LocationRequestError ? error.message : "暂时无法获取位置，请手动输入地点。"); }
   };
   const results = sortRestaurants(state.lastRestaurants, sort);
-  return <Layout><Page><Card className="nearby-header"><div className="nearby-title"><h1>附近吃点啥</h1><button className="icon-button locate-button" aria-label="定位" onClick={locate} disabled={loading}><LocateFixed/></button></div><div className="current-location"><MapPin/><span>{location || "还没有位置"}</span><button onClick={() => setEditingLocation((value) => !value)}>更改</button></div>{editingLocation && <div className="manual-location"><input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="城市、商圈、地址或地标"/><button onClick={() => search({ text: location }, true)}>确定</button></div>}<div className="nearby-search"><Search/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="可输入菜系、预算、用餐场景或距离"/><button onClick={() => search({ ...state.location, text: location }, false)} disabled={loading}>搜索</button></div></Card>
+  return <Layout><Page><Card className="nearby-header"><div className="nearby-title"><h1>附近吃点啥</h1><button className="icon-button locate-button" aria-label="定位" onClick={locate} disabled={loading}>{loading ? <LoaderCircle className="button-spinner"/> : <LocateFixed/>}</button></div><div className="current-location"><MapPin/><span>{location || "还没有位置"}</span><button onClick={() => setEditingLocation((value) => !value)}>更改</button></div>{editingLocation && <div className="manual-location"><input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="城市、商圈、地址或地标"/><button onClick={() => search({ text: location }, true)}>确定</button></div>}<div className="nearby-search"><Search/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="可输入菜系、预算、用餐场景或距离"/><button onClick={() => search({ ...state.location, text: location }, false)} disabled={loading} aria-busy={loading}>{loading && <LoaderCircle className="button-spinner"/>}{loading ? "搜索中" : "搜索"}</button></div></Card>
     <div className="sort-pills"><button className={sort === "relevance" ? "active" : ""} onClick={() => setSort("relevance")}><Heart fill="currentColor"/>综合推荐</button><button className={sort === "distance" ? "active" : ""} onClick={() => setSort("distance")}><MapPin/>距离最近</button><button className={sort === "rating" ? "active" : ""} onClick={() => setSort("rating")}><Star fill="currentColor"/>评分最高</button></div>
-    {loading && <LoadingPanel kind="location"/>}<Status message={status} tone={status.includes("整理") ? "success" : "error"}/><div className="results">{results.map((item, index) => <RestaurantCard key={item.id} item={item} saved={isSaved({ kind: "restaurant", id: item.id })} toggle={toggle} delay={index * 55} open={() => { viewed({ kind: "restaurant", id: item.id }); navigate(`/restaurant/${item.id}`); }}/>)}</div>{!loading && !results.length && !status && <EmptyState icon={<MapPin/>} title="附近还没有结果" message="输入菜系、预算、用餐场景或距离，开始搜索真实餐厅。"/>}
+    {loading && <LoadingPanel kind="location" elapsed={formatElapsed(elapsed)}/>}<Status message={status} tone={status.includes("整理") ? "success" : "error"}/><div className="results">{results.map((item, index) => <RestaurantCard key={item.id} item={item} priority={index < 2} animate={resultRevision > 0 || !restored.current?.hasRenderedResults} saved={isSaved({ kind: "restaurant", id: item.id })} toggle={toggle} delay={index * 55} open={() => { viewed({ kind: "restaurant", id: item.id }); navigate(`/restaurant/${item.id}`); }}/>)}</div>{!loading && !results.length && !status && <EmptyState icon={<MapPin/>} title="附近还没有结果" message="输入菜系、预算、用餐场景或距离，开始搜索真实餐厅。"/>}
   </Page></Layout>;
 }
 
 function DetailPage({ kind }: { kind: SavedKind }) {
-  const { id = "" } = useParams(); const { state, patch, toggle, isSaved, findMeal, findRecipe, findRestaurant, viewed } = useApp(); const navigate = useNavigate();
-  const [loading, setLoading] = useState(false); const [error, setError] = useState(""); const item = kind === "meal" ? findMeal(id) : kind === "recipe" ? findRecipe(id) : findRestaurant(id);
+  const { id = "" } = useParams(); const { state, mergeRecipes, toggle, isSaved, findMeal, findRecipe, findRestaurant, viewed } = useApp(); const navigate = useNavigate();
+  const [loading, setLoading] = useState(false); const [error, setError] = useState(""); const detailRequested = useRef(""); const item = kind === "meal" ? findMeal(id) : kind === "recipe" ? findRecipe(id) : findRestaurant(id);
   useEffect(() => { viewed({ kind, id }); }, [kind, id, viewed]);
-  useEffect(() => { if (kind !== "recipe" || !item || (item as Recipe).stepImageUrls?.length || (item as Recipe).source === "seed" || !navigator.onLine) return; const controller = new AbortController(); setLoading(true); new ApiGateway(state.developerSettings).recipe(id, controller.signal).then((detail) => patch({ recipeCache: [detail, ...state.recipeCache.filter((entry) => entry.id !== detail.id)] })).catch((cause) => setError(friendlyError(cause))).finally(() => setLoading(false)); return () => controller.abort(); }, [id, kind]);
+  useEffect(() => { if (kind !== "recipe" || !item || (item as Recipe).stepImageUrls?.length || (item as Recipe).source === "seed" || !navigator.onLine || detailRequested.current === id) return; detailRequested.current = id; const controller = new AbortController(); setLoading(true); new ApiGateway(state.developerSettings).recipe(id, controller.signal).then((detail) => mergeRecipes([detail])).catch((cause) => setError(friendlyError(cause))).finally(() => setLoading(false)); return () => controller.abort(); }, [id, item, kind, mergeRecipes, state.developerSettings]);
   if (!item) return <Layout><Page><TopBar title="详情" back/><EmptyState title="没有找到这条内容" message="它可能已从缓存中清理，请返回重新搜索。" action={() => navigate(-1)} actionText="返回"/></Page></Layout>;
   if (kind === "meal") { const meal = item as MealPlan; return <Layout><Page><TopBar title="组合菜单详情" subtitle="一桌饭的完整安排" back/><ImageHero src={meal.coverUrl} title={meal.title}/><DetailMeta items={[meal.structure, meal.cookTime, meal.servings]}/><Card><h2>这一桌怎么搭</h2><div className="dish-list">{meal.dishes.map((dish) => <button key={`${dish.course}-${dish.name}`} disabled={!dish.recipeId} onClick={() => dish.recipeId && navigate(`/recipe/${dish.recipeId}`)}><span>{dish.course}</span><div><b>{dish.name}</b><small>{dish.note}</small></div>{dish.recipeId && "›"}</button>)}</div></Card><Card><h2>统一采购清单</h2><ul className="check-list">{meal.shoppingList.map((value) => <li key={value}>{value}</li>)}</ul></Card><Card><h2>建议烹饪顺序</h2><ol className="timeline">{meal.timeline.map((value) => <li key={value}>{value}</li>)}</ol></Card><button className="button sticky-action" onClick={() => toggle({ kind, id })}>{isSaved({ kind, id }) ? "取消收藏" : "收藏整套菜单"}</button></Page></Layout>; }
-  if (kind === "recipe") { const recipe = item as Recipe; return <Layout><Page><TopBar title="菜谱详情" subtitle="食材、步骤和小技巧" back/><ImageHero src={recipe.coverUrl} title={recipe.name}/><DetailMeta items={[recipe.cuisine, recipe.cookTime, recipe.difficulty, recipe.servings]}/><Status message={error} tone="error"/>{loading && <LoadingPanel kind="database"/>}<Card><h2>准备食材</h2><div className="ingredient-grid">{recipe.ingredients.map((value, index) => <div key={`${value.name}-${index}`}><b>{value.name}</b><span>{value.amount}</span></div>)}</div></Card><Card><h2>跟着步骤做</h2><ol className="recipe-steps">{recipe.steps.map((step, index) => <li key={`${step}-${index}`}><span>{index + 1}</span><div>{recipe.stepImageUrls?.[index] && <img src={recipe.stepImageUrls[index]} alt={`第 ${index + 1} 步`} loading="lazy"/>}<p>{step}</p></div></li>)}</ol></Card><Card className="tip-card"><CircleHelp/><div><h2>烹饪小技巧</h2><p>{recipe.tips}</p></div></Card><button className="button sticky-action" onClick={() => toggle({ kind, id })}>{isSaved({ kind, id }) ? "取消收藏" : "收藏菜谱"}</button></Page></Layout>; }
+  if (kind === "recipe") { const recipe = item as Recipe; return <Layout><Page><TopBar title="菜谱详情" subtitle="食材、步骤和小技巧" back/><ImageHero src={recipe.coverUrl} title={recipe.name}/><DetailMeta items={[recipe.cuisine, recipe.cookTime, recipe.difficulty, recipe.servings]}/><Status message={error} tone="error"/>{loading && <LoadingPanel kind="database"/>}<Card><h2>准备食材</h2><div className="ingredient-grid">{recipe.ingredients.map((value, index) => <div key={`${value.name}-${index}`}><b>{value.name}</b><span>{value.amount}</span></div>)}</div></Card><Card><h2>跟着步骤做</h2><ol className="recipe-steps">{recipe.steps.map((step, index) => <li key={`${step}-${index}`}><span>{index + 1}</span><div>{recipe.stepImageUrls?.[index] && <CachedImage src={recipe.stepImageUrls[index]} alt={`第 ${index + 1} 步`} priority={index === 0} fallback={<span className="step-image-placeholder">步骤图片暂不可用</span>}/>}<p>{step}</p></div></li>)}</ol></Card><Card className="tip-card"><CircleHelp/><div><h2>烹饪小技巧</h2><p>{recipe.tips}</p></div></Card><button className="button sticky-action" onClick={() => toggle({ kind, id })}>{isSaved({ kind, id }) ? "取消收藏" : "收藏菜谱"}</button></Page></Layout>; }
   const restaurant = item as Restaurant; const navUrl = restaurant.latitude != null && restaurant.longitude != null ? `https://uri.amap.com/navigation?to=${restaurant.longitude},${restaurant.latitude},${encodeURIComponent(restaurant.name)}&mode=car&src=chidian` : `https://uri.amap.com/search?keyword=${encodeURIComponent(`${restaurant.name} ${restaurant.address}`)}&src=chidian`;
-  return <Layout><Page><TopBar title="餐厅详情" subtitle="门店信息与导航" back/><ImageHero src={restaurant.coverUrl} title={restaurant.name} tone="mint"/><DetailMeta items={[restaurant.category, restaurant.distance, restaurant.rating, restaurant.price]}/><Card><h2>为什么推荐</h2><p>{restaurant.reason}</p><Chips items={restaurant.tags} tone="mint"/></Card><Card><h2>门店信息</h2><dl className="details"><div><dt>地址</dt><dd>{restaurant.address}</dd></div><div><dt>营业</dt><dd>{restaurant.open}</dd></div><div><dt>电话</dt><dd>{restaurant.phone}</dd></div><div><dt>来源</dt><dd>{restaurant.source}</dd></div></dl></Card><div className="sticky-row"><button className="button secondary" onClick={() => toggle({ kind, id })}>{isSaved({ kind, id }) ? "已收藏" : "收藏"}</button><button className="button grow" onClick={() => window.open(navUrl, "_blank", "noopener")}>导航去这里</button></div></Page></Layout>;
+  return <Layout><Page><TopBar title="餐厅详情" subtitle="门店信息与导航" back/><ImageHero src={restaurant.coverUrl} title={restaurant.name} tone="mint"/><DetailMeta items={[restaurant.category, restaurant.distance, restaurant.rating, restaurant.price]}/><Card><h2>为什么推荐</h2><p>{restaurant.reason}</p><Chips items={restaurant.tags} tone="mint"/></Card><Card><h2>门店信息</h2><dl className="details"><div><dt>地址</dt><dd>{restaurant.address}</dd></div><div><dt>营业</dt><dd>{restaurant.open}</dd></div><div><dt>电话</dt><dd>{restaurant.phone}</dd></div><div><dt>来源</dt><dd>{restaurant.source}</dd></div></dl></Card><div className="sticky-row"><button className="button secondary" onClick={() => toggle({ kind, id })}>{isSaved({ kind, id }) ? "已收藏" : "收藏"}</button><a className="button grow" href={navUrl} target="_blank" rel="noopener noreferrer" data-map-navigation onClick={(event) => markExternalNavigation(event.currentTarget)}>导航去这里</a></div></Page></Layout>;
 }
 
 function DetailMeta({ items }: { items: string[] }) { return <div className="detail-meta">{items.filter(Boolean).map((value) => <span key={value}>{value}</span>)}</div>; }
 
 function SavedPage() {
-  const { state, toggle, isSaved, findMeal, findRecipe, findRestaurant, viewed } = useApp(); const navigate = useNavigate(); const [filter, setFilter] = useState<"all" | "cook" | "restaurant">("all"); const refs = state.saved.filter((ref) => filter === "all" || (filter === "restaurant" ? ref.kind === "restaurant" : ref.kind !== "restaurant"));
-  return <Layout><Page><TopBar title="收藏" subtitle="组合菜单、菜谱和餐厅都在这里" back action={<Info/>}/><Card className="saved-tabs"><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>全部</button><button className={filter === "restaurant" ? "active" : ""} onClick={() => setFilter("restaurant")}>餐厅</button><button className={filter === "cook" ? "active" : ""} onClick={() => setFilter("cook")}>自己做</button></Card><div className="results">{refs.map((ref, index) => { const item = ref.kind === "meal" ? findMeal(ref.id) : ref.kind === "recipe" ? findRecipe(ref.id) : findRestaurant(ref.id); return item && <SavedCompactCard key={`${ref.kind}-${ref.id}`} kind={ref.kind} item={item} saved={isSaved(ref)} delay={index * 45} onToggle={() => toggle(ref)} onOpen={() => { viewed(ref); navigate(`/${ref.kind}/${ref.id}`); }}/>; })}</div>{!refs.length && <EmptyState title="还没有收藏" message="看到喜欢的组合菜单、菜谱或餐厅，点收藏就会出现在这里。"/>}</Page></Layout>;
+  type SavedMemory = { scrollY: number; hasRenderedResults: boolean; filter: "all" | "cook" | "restaurant" };
+  const { state, toggle, isSaved, findMeal, findRecipe, findRestaurant, viewed } = useApp(); const navigate = useNavigate(); const restored = useRef(readPageMemory<SavedMemory>("saved")); const [filter, setFilter] = useState<"all" | "cook" | "restaurant">(restored.current?.filter ?? "all"); const filterRef = useRef(filter); filterRef.current = filter; const refs = state.saved.filter((ref) => filter === "all" || (filter === "restaurant" ? ref.kind === "restaurant" : ref.kind !== "restaurant"));
+  useEffect(() => { restorePageScroll("saved"); return () => writePageMemory<SavedMemory>("saved", { filter: filterRef.current, scrollY: window.scrollY, hasRenderedResults: true }); }, []);
+  return <Layout><Page><TopBar title="收藏" subtitle="组合菜单、菜谱和餐厅都在这里" back action={<Info/>}/><Card className="saved-tabs"><button className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>全部</button><button className={filter === "restaurant" ? "active" : ""} onClick={() => setFilter("restaurant")}>餐厅</button><button className={filter === "cook" ? "active" : ""} onClick={() => setFilter("cook")}>自己做</button></Card><div className="results">{refs.map((ref, index) => { const item = ref.kind === "meal" ? findMeal(ref.id) : ref.kind === "recipe" ? findRecipe(ref.id) : findRestaurant(ref.id); return item && <SavedCompactCard key={`${ref.kind}-${ref.id}`} kind={ref.kind} item={item} priority={index < 2} animate={!restored.current?.hasRenderedResults} saved={isSaved(ref)} delay={index * 45} onToggle={() => toggle(ref)} onOpen={() => { viewed(ref); navigate(`/${ref.kind}/${ref.id}`); }}/>; })}</div>{!refs.length && <EmptyState title="还没有收藏" message="看到喜欢的组合菜单、菜谱或餐厅，点收藏就会出现在这里。"/>}</Page></Layout>;
 }
 
-function SavedCompactCard({ kind, item, saved, delay, onToggle, onOpen }: { kind: SavedKind; item: MealPlan | Recipe | Restaurant; saved: boolean; delay: number; onToggle: () => void; onOpen: () => void }) {
+function SavedCompactCard({ kind, item, saved, delay, animate, priority, onToggle, onOpen }: { kind: SavedKind; item: MealPlan | Recipe | Restaurant; saved: boolean; delay: number; animate: boolean; priority: boolean; onToggle: () => void; onOpen: () => void }) {
   const title = kind === "meal" ? (item as MealPlan).title : kind === "recipe" ? (item as Recipe).name : (item as Restaurant).name;
   const subtitle = kind === "meal" ? `${(item as MealPlan).structure} · ${(item as MealPlan).cookTime}` : kind === "recipe" ? `${(item as Recipe).cookTime} · ${(item as Recipe).difficulty}` : `${(item as Restaurant).distance} · ${(item as Restaurant).price}`;
   const tags = item.tags.slice(0, 3); const image = item.coverUrl;
-  return <article className="saved-compact card card-enter" style={{ animationDelay: `${Math.min(delay, 220)}ms` }}><button className="saved-main" onClick={onOpen}><div className={`saved-thumb ${kind === "restaurant" ? "mint" : "warm"}`}>{image ? <img src={image} alt="" loading="lazy"/> : kind === "restaurant" ? <MapPin/> : <span>{kind === "meal" ? "套餐" : title.slice(0, 1)}</span>}</div><div className="saved-copy"><h2>{title}</h2><p>{subtitle}</p><div className="chips">{tags.map((tag) => <span className="chip" key={tag}>{tag}</span>)}</div></div></button><button className="save-button saved" aria-label="取消收藏" onClick={onToggle}><Heart fill={saved ? "currentColor" : "none"}/></button></article>;
+  return <article className={`saved-compact card interactive-card ${animate ? "card-enter" : ""}`} style={animate ? { animationDelay: `${Math.min(delay, 220)}ms` } : undefined} role="link" tabIndex={0} aria-label={`查看${title}`} onClick={onOpen} onKeyDown={(event) => { if (event.currentTarget !== event.target || (event.key !== "Enter" && event.key !== " ")) return; event.preventDefault(); onOpen(); }}><div className="saved-main"><div className={`saved-thumb ${kind === "restaurant" ? "mint" : "warm"}`}><CachedImage src={image} priority={priority} fallback={kind === "restaurant" ? <MapPin/> : <span>{kind === "meal" ? "套餐" : title.slice(0, 1)}</span>}/></div><div className="saved-copy"><h2>{title}</h2><p>{subtitle}</p><div className="chips">{tags.map((tag) => <span className="chip" key={tag}>{tag}</span>)}</div></div></div><button className="save-button saved" aria-label="取消收藏" onClick={(event) => { event.stopPropagation(); onToggle(); }}><Heart fill={saved ? "currentColor" : "none"}/></button></article>;
 }
 
 function SettingsPage() {

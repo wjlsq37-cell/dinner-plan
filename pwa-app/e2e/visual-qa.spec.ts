@@ -22,6 +22,11 @@ test("capture reference states", async ({ page, context }, testInfo) => {
 
   await context.grantPermissions(["geolocation"], { origin: "http://127.0.0.1:4173" });
   await context.setGeolocation({ latitude: 30.25, longitude: 120.16 });
+  await page.route("**/api/location/reverse", async (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({ location: { latitude: 30.25, longitude: 120.16, text: "浙江省杭州市上城区湖滨街道" } })
+  }));
   await page.route("**/api/backend/recommend/restaurant", async (route) => route.fulfill({
     status: 200,
     contentType: "application/json",

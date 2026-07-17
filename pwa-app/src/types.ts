@@ -17,6 +17,15 @@ export interface LocationValue {
   text?: string | null;
 }
 
+export interface ReverseGeocodeRequest {
+  latitude: number;
+  longitude: number;
+}
+
+export interface ReverseGeocodeResponse {
+  location: Required<Pick<LocationValue, "latitude" | "longitude" | "text">>;
+}
+
 export interface UserPreference {
   tastes: string[];
   avoids: string[];

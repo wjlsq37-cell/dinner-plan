@@ -35,6 +35,7 @@ npm run test:e2e
 2. Framework Preset 选择 Vite，Build Command 使用 `npm run build`，Output Directory 使用 `dist`。
 3. 设置 `UPSTREAM_API_BASE_URL=https://dinner-plan-amber.vercel.app`。
 4. 如果现有后端启用了 App Token，再设置仅服务端可见的 `UPSTREAM_APP_TOKEN`。
+5. 设置仅服务端可见的 `AMAP_WEB_KEY`，用于把浏览器定位坐标解析为真实地址；该值不会进入前端构建或 IndexedDB。
 
 如果本地 `.vercel/project.json` 仍显示 `dinner-plan`，先在仓库根目录重新执行 `vercel link --repo`，把 `pwa-app` 目录关联到 `dinner-plan-pwa`。部署前先确认现有后端的 `/api/health` 正常。
 

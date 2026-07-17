@@ -1,4 +1,4 @@
-import type { ApiErrorKind, CookRecommendationResponse, DeveloperSettings, MealPlan, Recipe, RecommendationRequest, RestaurantRecommendationResponse, ServiceStatus } from "../types";
+import type { ApiErrorKind, CookRecommendationResponse, DeveloperSettings, MealPlan, Recipe, RecommendationRequest, RestaurantRecommendationResponse, ReverseGeocodeRequest, ReverseGeocodeResponse, ServiceStatus } from "../types";
 
 export class ApiError extends Error {
   constructor(public kind: ApiErrorKind, message: string, public status?: number) {
@@ -21,6 +21,10 @@ const isRecipe: Validator<Recipe> = (body): body is Recipe => isRecord(body) && 
 const isMealPlan: Validator<MealPlan> = (body): body is MealPlan => isRecord(body) && typeof body.id === "string" && typeof body.title === "string";
 const isServiceStatus: Validator<ServiceStatus> = (body): body is ServiceStatus =>
   isRecord(body) && typeof body.proxyReachable === "boolean" && typeof body.backendConfigured === "boolean" && typeof body.message === "string";
+const isReverseGeocodeResponse: Validator<ReverseGeocodeResponse> = (body): body is ReverseGeocodeResponse => {
+  const location = isRecord(body) && isRecord(body.location) ? body.location : null;
+  return Boolean(location) && typeof location?.latitude === "number" && typeof location.longitude === "number" && typeof location.text === "string";
+};
 
 async function requestJson<T>(url: string, init?: RequestInit, signal?: AbortSignal, validate?: Validator<T>): Promise<T> {
   if (!navigator.onLine) throw new ApiError("offline", "当前处于离线状态，联网后再试一次。");
@@ -69,6 +73,10 @@ export class ApiGateway {
     return this.settings.enabled
       ? requestJson("/api/direct", { method: "POST", body: JSON.stringify({ operation: "restaurant", settings: this.settings, payload }) }, signal, isRestaurantResponse)
       : requestJson("/api/backend/recommend/restaurant", { method: "POST", body: JSON.stringify(payload) }, signal, isRestaurantResponse);
+  }
+
+  reverseGeocode(payload: ReverseGeocodeRequest, signal?: AbortSignal): Promise<ReverseGeocodeResponse> {
+    return requestJson("/api/location/reverse", { method: "POST", body: JSON.stringify(payload) }, signal, isReverseGeocodeResponse);
   }
 
   recipe(id: string, signal?: AbortSignal): Promise<Recipe> {
