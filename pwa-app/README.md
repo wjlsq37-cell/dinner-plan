@@ -4,6 +4,8 @@
 
 ## 本地运行
 
+本项目固定使用 Node.js 22。开始前请先确认 `node --version` 输出为 `v22.x`；Node.js 24 会导致当前版本的 Vercel 本地 Functions 启动失败。
+
 ```bash
 npm install
 npm run dev
@@ -15,7 +17,13 @@ npm run dev
 npm run dev:full
 ```
 
-首次使用完整模式前需要运行一次 `npx vercel login`，并把当前目录链接到独立的 `dinner-plan-pwa` 项目。
+首次使用完整模式前需要运行一次 `npx vercel login`，并从 `pwa-app/` 执行以下命令，把仓库根目录链接到独立的 `dinner-plan-pwa` 项目：
+
+```bash
+npx vercel link --cwd .. --project dinner-plan-pwa
+```
+
+`npm run dev:full` 会从仓库根目录读取该链接，再加载 Root Directory 为 `pwa-app/` 的网页和 Functions，避免出现重复的 `pwa-app/pwa-app` 路径。
 
 手机通过电脑局域网 HTTP 地址只能预览界面。浏览器精确定位需要 localhost 或部署后的 HTTPS 地址。
 
@@ -33,9 +41,10 @@ npm run test:e2e
    - 推荐项目名：`dinner-plan-pwa`
    - 不要把 `pwa-app` 链接到现有后端项目 `dinner-plan`
 2. Framework Preset 选择 Vite，Build Command 使用 `npm run build`，Output Directory 使用 `dist`。
-3. 设置 `UPSTREAM_API_BASE_URL=https://dinner-plan-amber.vercel.app`。
-4. 如果现有后端启用了 App Token，再设置仅服务端可见的 `UPSTREAM_APP_TOKEN`。
-5. 设置仅服务端可见的 `AMAP_WEB_KEY`，用于把浏览器定位坐标解析为真实地址；该值不会进入前端构建或 IndexedDB。
+3. Node.js Version 选择 `22.x`；`package.json` 也会锁定该版本，避免自动升级导致 Functions 无法启动。
+4. 设置 `UPSTREAM_API_BASE_URL=https://dinner-plan-amber.vercel.app`。
+5. 如果现有后端启用了 App Token，再设置仅服务端可见的 `UPSTREAM_APP_TOKEN`。
+6. 设置仅服务端可见的 `AMAP_WEB_KEY`，用于把浏览器定位坐标解析为真实地址；该值不会进入前端构建或 IndexedDB。
 
 如果本地 `.vercel/project.json` 仍显示 `dinner-plan`，先在仓库根目录重新执行 `vercel link --repo`，把 `pwa-app` 目录关联到 `dinner-plan-pwa`。部署前先确认现有后端的 `/api/health` 正常。
 

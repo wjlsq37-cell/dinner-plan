@@ -43,16 +43,22 @@ async function requestJson<T>(url: string, init?: RequestInit, signal?: AbortSig
     if (error instanceof DOMException && error.name === "AbortError") throw new ApiError("cancelled", "请求已取消，已保留上一次成功结果。");
     throw new ApiError("proxy_unreachable", "暂时无法连接服务，请检查网络或代理部署。");
   }
+  const vercelError = response.headers.get("x-vercel-error")?.toUpperCase() || "";
+  const rawBody = await response.text();
   let body: unknown;
   try {
-    body = JSON.parse(await response.text());
+    body = JSON.parse(rawBody);
   } catch {
+    if (vercelError === "FUNCTION_INVOCATION_FAILED" || response.status >= 500) {
+      throw new ApiError("proxy_runtime", "网页代理服务启动失败，请稍后重试或重新部署。", response.status);
+    }
     throw new ApiError("invalid_response", "服务返回了无效数据。", response.status);
   }
   if (!response.ok) {
     const message = isRecord(body) && typeof body.message === "string" ? body.message : `请求失败（${response.status}）`;
     const code = isRecord(body) && typeof body.error === "string" ? body.error : "";
-    const kind: ApiErrorKind = response.status === 401 || response.status === 403 ? "auth"
+    const kind: ApiErrorKind = vercelError === "FUNCTION_INVOCATION_FAILED" || code === "function_invocation_failed" ? "proxy_runtime"
+      : response.status === 401 || response.status === 403 ? "auth"
       : response.status === 408 || response.status === 504 ? "timeout"
       : code === "proxy_route_missing" || response.status === 404 ? "proxy_unreachable"
       : response.status === 400 || code.includes("config") ? "config"

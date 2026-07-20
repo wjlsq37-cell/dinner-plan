@@ -15,6 +15,40 @@ describe("ApiGateway error mapping", () => {
     await expect(new ApiGateway(defaultState.developerSettings).status()).rejects.toEqual(expect.objectContaining({ kind: "auth", status: 401 }));
   });
 
+  it("maps a Vercel function startup failure before parsing its text body", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("A server error has occurred\nFUNCTION_INVOCATION_FAILED", {
+      status: 500,
+      headers: { "content-type": "text/plain", "x-vercel-error": "FUNCTION_INVOCATION_FAILED" }
+    })));
+    await expect(new ApiGateway(defaultState.developerSettings).status()).rejects.toMatchObject({ kind: "proxy_runtime", status: 500 });
+  });
+
+  it("maps an unstructured function 5xx response as a proxy runtime failure", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Internal Server Error", { status: 502, headers: { "content-type": "text/plain" } })));
+    await expect(new ApiGateway(defaultState.developerSettings).status()).rejects.toMatchObject({ kind: "proxy_runtime", status: 502 });
+  });
+
+  it("maps a structured gateway timeout separately", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "upstream_timeout", message: "线上服务响应超时" }), {
+      status: 504,
+      headers: { "content-type": "application/json" }
+    })));
+    await expect(new ApiGateway(defaultState.developerSettings).status()).rejects.toMatchObject({ kind: "timeout", status: 504 });
+  });
+
+  it("maps a structured upstream failure without treating it as a function crash", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: "upstream_error", message: "线上服务暂时不可用" }), {
+      status: 502,
+      headers: { "content-type": "application/json" }
+    })));
+    await expect(new ApiGateway(defaultState.developerSettings).status()).rejects.toMatchObject({ kind: "upstream", status: 502 });
+  });
+
+  it("keeps malformed successful responses distinct from function startup failures", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("not-json", { status: 200, headers: { "content-type": "text/plain" } })));
+    await expect(new ApiGateway(defaultState.developerSettings).status()).rejects.toMatchObject({ kind: "invalid_response", status: 200 });
+  });
+
   it("uses the developer endpoint without exposing settings in the URL", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ intent: "RECIPE_SINGLE", summary: "ok", mealPlans: [], recipes: [], source: "AI_GENERATED", totalMatches: 0 }), { status: 200, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);

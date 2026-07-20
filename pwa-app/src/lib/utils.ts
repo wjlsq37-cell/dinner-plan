@@ -66,6 +66,7 @@ export function friendlyError(error: unknown): string {
     const messages = {
       offline: "当前处于离线状态，联网后再试一次。",
       proxy_unreachable: "暂时无法连接服务，请检查网络或代理部署。",
+      proxy_runtime: "网页代理服务启动失败，请稍后重试或重新部署。",
       auth: "服务鉴权失败，请检查代理访问令牌。",
       config: "服务配置不完整，请检查开发者设置。",
       timeout: "请求等待超时，请稍后重试。",

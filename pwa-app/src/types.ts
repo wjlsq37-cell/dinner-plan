@@ -2,7 +2,7 @@ export type RecommendMode = "RECIPE_COMBO" | "RECIPE_SINGLE";
 export type CookSource = "DATABASE" | "AI_GENERATED";
 export type SavedKind = "meal" | "recipe" | "restaurant";
 export type RestaurantSort = "relevance" | "distance" | "rating";
-export type ApiErrorKind = "offline" | "proxy_unreachable" | "auth" | "config" | "timeout" | "upstream" | "invalid_response" | "cancelled" | "ai_unavailable";
+export type ApiErrorKind = "offline" | "proxy_unreachable" | "proxy_runtime" | "auth" | "config" | "timeout" | "upstream" | "invalid_response" | "cancelled" | "ai_unavailable";
 export type LocationErrorKind = "insecure_context" | "unsupported" | "permission_denied" | "unavailable" | "timeout" | "unknown";
 
 export interface ServiceStatus {
