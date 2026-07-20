@@ -10,7 +10,7 @@ test("home matches the four primary journeys", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "收藏" })).toBeVisible();
 });
 
-test("cook flow persists the last successful query", async ({ page }) => {
+test("cook flow keeps results but clears the search query after reopening", async ({ page }) => {
   await page.route("**/api/backend/recommend/cook", async (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
@@ -23,7 +23,29 @@ test("cook flow persists the last successful query", async ({ page }) => {
   await page.getByRole("button", { name: "搜索菜谱" }).click();
   await expect(page.getByText("已筛选", { exact: true })).toBeVisible();
   await page.reload();
-  await expect(input).toHaveValue("清淡快手菜");
+  await expect(input).toHaveValue("");
+});
+
+test("cook generation continues while another page is open", async ({ page }) => {
+  await page.route("**/api/backend/recommend/cook", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ intent: "RECIPE_SINGLE", summary: "后台生成完成", mealPlans: [], recipes: [{ id: "background-result", name: "后台生成菜谱", cuisine: "家常菜", taste: [], tags: [], difficulty: "简单", cookTime: "20 分钟", servings: "2 人份", coverUrl: "", reason: "", ingredients: [], steps: [], tips: "" }], source: "DATABASE", totalMatches: 1 })
+    });
+  });
+  await page.goto("/cook");
+  await page.getByRole("button", { name: "单道菜" }).click();
+  await page.getByPlaceholder(/两荤一素/).fill("后台生成");
+  await page.getByRole("button", { name: "搜索菜谱" }).click();
+  await expect(page.getByRole("heading", { name: "正在菜谱库里筛选" })).toBeVisible();
+  await page.getByRole("link", { name: /收藏/ }).click();
+  await expect(page.getByRole("heading", { name: "收藏" })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByPlaceholder(/两荤一素/)).toHaveValue("");
+  await expect(page.getByRole("heading", { name: "后台生成菜谱" })).toBeVisible();
+  await expect(page.getByText("后台生成完成", { exact: true })).toBeVisible();
 });
 
 test("AI mode sends the AI source and does not present a recipe database fallback as generated", async ({ page }) => {
@@ -139,6 +161,25 @@ test("nearby search keeps the original animation and shows a live timer", async 
   await expect(page.getByRole("button", { name: "搜索", exact: true })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "正在搜索附近餐厅" })).toBeVisible();
   await expect(page.getByText(/已用时 00:/)).toBeVisible();
+});
+
+test("nearby search continues across navigation and never restores its query", async ({ page }) => {
+  await page.route("**/api/backend/recommend/restaurant", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ restaurants: [{ id: "background-restaurant", source: "amap", name: "后台找到的餐厅", category: "日料", tags: [], address: "湖滨商圈", distance: "800m", rating: "4.6", price: "人均 ¥88", open: "营业中", phone: "", coverUrl: "", reason: "不在结果卡片展示" }], locationUsed: { text: "杭州湖滨" } }) });
+  });
+  await page.goto("/nearby");
+  const input = page.getByPlaceholder(/菜系、预算/);
+  await input.fill("日料人均 200");
+  await page.getByRole("button", { name: "搜索", exact: true }).click();
+  await page.getByRole("link", { name: /首页/ }).click();
+  await page.getByRole("link", { name: /附近/ }).click();
+  await expect(input).toHaveValue("");
+  const restaurantCard = page.getByRole("link", { name: "查看餐厅：后台找到的餐厅" });
+  await expect(restaurantCard).toBeVisible();
+  await expect(restaurantCard).not.toContainText("不在结果卡片展示");
+  const height = await restaurantCard.evaluate((element) => element.getBoundingClientRect().height);
+  expect(height).toBeLessThanOrEqual(160);
 });
 
 test("secure browser location is sent to restaurant search", async ({ page, context }) => {

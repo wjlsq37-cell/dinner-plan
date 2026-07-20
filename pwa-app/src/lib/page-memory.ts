@@ -10,7 +10,8 @@ export function readPageMemory<T extends PageMemoryBase>(key: string): T | undef
 }
 
 export function writePageMemory<T extends PageMemoryBase>(key: string, value: T): void {
-  pageMemory.set(key, value);
+  const { query: _query, ...safeValue } = value as T & { query?: unknown };
+  pageMemory.set(key, safeValue as PageMemoryBase);
 }
 
 export function restorePageScroll(key: string): void {

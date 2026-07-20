@@ -32,12 +32,12 @@ export async function loadState(): Promise<PersistedState> {
   try {
     const saved = await (await db()).get(STORE_NAME, "app");
     if (!saved || saved.version !== 1) return structuredClone(defaultState);
-    return { ...structuredClone(defaultState), ...saved, preferences: { ...defaultState.preferences, ...saved.preferences }, developerSettings: { ...defaultState.developerSettings, ...saved.developerSettings } };
+    return { ...structuredClone(defaultState), ...saved, lastCookQuery: "", lastRestaurantQuery: "", preferences: { ...defaultState.preferences, ...saved.preferences }, developerSettings: { ...defaultState.developerSettings, ...saved.developerSettings } };
   } catch {
     return structuredClone(defaultState);
   }
 }
 
 export async function saveState(state: PersistedState): Promise<void> {
-  try { await (await db()).put(STORE_NAME, state, "app"); } catch { /* Private browsing may deny IndexedDB. */ }
+  try { await (await db()).put(STORE_NAME, { ...state, lastCookQuery: "", lastRestaurantQuery: "" }, "app"); } catch { /* Private browsing may deny IndexedDB. */ }
 }

@@ -7,7 +7,9 @@
   - `C:\Users\admin\AppData\Local\Temp\codex-clipboard-09fb171a-74e5-4a03-86fb-a795b002e646.png`（附近）
   - `C:\Users\admin\AppData\Local\Temp\codex-clipboard-9ecb9b34-bd28-4809-883a-be3cac2e50a3.png`（收藏）
   - `C:\Users\admin\AppData\Local\Temp\codex-clipboard-fa507265-d2d4-45ee-827c-c612d1d4ec48.png`（设置）
+  - `C:\Users\admin\AppData\Local\Temp\codex-clipboard-40ecf061-0636-41a8-9cb2-b7a5e48c0271.png`（附近餐厅卡片调整）
 - Browser-rendered implementation: `pwa-app/test-results/visual-qa-capture-reference-states-desktop-chrome/*.png`
+- Current nearby comparison board: `pwa-app/test-results/nearby-comparison.png`（左侧为用户截图，右侧为 390 × 844 实现）
 - Viewport: 390 × 844, device scale factor 1.
 - State: clean IndexedDB defaults; nearby page uses deterministic mocked restaurant data matching the reference density.
 
@@ -16,7 +18,7 @@
 ### Full-view evidence
 
 - Home: header, decision card, two action cards, inspiration empty state and fixed navigation align with the reference composition and mobile density.
-- Nearby: location/search card, three sorting pills, mint status tile, compact restaurant cards and bottom navigation align with the reference hierarchy.
+- Nearby: location/search card, three sorting pills, mint status tile, compact restaurant cards and bottom navigation align with the reference hierarchy. Result cards no longer render the green recommendation sentence; title, distance and metadata are vertically centered beside an 84px image, with actions following at a consistent 10px gap.
 - Saved: title row, three filter tabs and 120px compact saved cards align with the reference rhythm.
 - Settings: developer entry, preference cards, selected chips, search-radius card, switches and bottom navigation align with the reference.
 
@@ -40,11 +42,16 @@
 3. Post-fix evidence:
    - Second 390 × 844 capture shows matching page hierarchy, card proportions and navigation placement.
    - No actionable P0, P1 or P2 mismatch remains.
+4. Restaurant-card copy reduction:
+   - Removed the highlighted green recommendation sentence from every nearby result card.
+   - Reduced the image from 94px to 84px and tightened card padding/gaps so the removed sentence does not leave an empty block.
+   - The comparison board confirms a compact, balanced card with no horizontal overflow or orphaned whitespace.
 
 ## Primary Interactions Tested
 
 - Bottom navigation and browser history.
-- Cook mode/source controls and successful-query restoration.
+- Cook mode/source controls, cross-page request continuity and empty search fields after reopening.
+- Nearby cross-page search continuity, empty search fields after reopening and compact result-card layout.
 - Preference select, deselect and refresh persistence.
 - Manual location fallback and secure geolocation success.
 - Saved filters and independent unsave actions.

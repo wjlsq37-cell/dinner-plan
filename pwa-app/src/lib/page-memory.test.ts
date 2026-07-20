@@ -8,7 +8,9 @@ describe("page memory", () => {
     const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { callback(0); return 1; });
     writePageMemory("nearby", { scrollY: 420, hasRenderedResults: true, query: "火锅", sort: "distance" });
-    expect(readPageMemory<{ scrollY: number; hasRenderedResults: boolean; query: string; sort: string }>("nearby")).toMatchObject({ query: "火锅", sort: "distance" });
+    const restored = readPageMemory<{ scrollY: number; hasRenderedResults: boolean; query?: string; sort: string }>("nearby");
+    expect(restored).toMatchObject({ sort: "distance" });
+    expect(restored).not.toHaveProperty("query");
     restorePageScroll("nearby");
     expect(scrollTo).toHaveBeenCalledWith({ top: 420, behavior: "auto" });
   });

@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RecipeCard } from "./cards";
+import { RecipeCard, RestaurantCard } from "./cards";
 import { defaultState } from "../lib/store";
 
 afterEach(cleanup);
@@ -24,5 +24,11 @@ describe("result card interactions", () => {
     fireEvent.click(screen.getByRole("button", { name: "收藏" }));
     expect(toggle).toHaveBeenCalledWith({ kind: "recipe", id: defaultState.recipeCache[0].id });
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it("omits the restaurant recommendation reason from result cards", () => {
+    render(<MemoryRouter><RestaurantCard item={defaultState.restaurantCache[0]} saved={false} toggle={vi.fn()} open={vi.fn()}/></MemoryRouter>);
+    expect(screen.queryByText(defaultState.restaurantCache[0].reason)).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: defaultState.restaurantCache[0].name })).toBeVisible();
   });
 });

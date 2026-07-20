@@ -26,7 +26,7 @@ export function RestaurantCard({ item, saved, toggle, open, delay = 0, animate =
   const navigate = useNavigate();
   const activate = open || (() => navigate(`/restaurant/${item.id}`));
   return <Card className="restaurant-result" delay={delay} animate={animate} onActivate={activate} ariaLabel={`查看餐厅：${item.name}`}>
-    <div className="restaurant-main"><div className="restaurant-thumb"><CachedImage src={item.coverUrl} priority={priority} fallback={<MapPin/>}/></div><div className="restaurant-copy"><div className="restaurant-title"><h2>{item.name}</h2><span>{item.distance}</span></div><div className="restaurant-meta"><b><Star fill="currentColor"/> {item.rating}</b><span>{item.price}</span><span>{item.category}</span></div><p className="reason-pill"><Heart fill="currentColor"/> {item.reason}</p></div></div>
+    <div className="restaurant-main"><div className="restaurant-thumb"><CachedImage src={item.coverUrl} priority={priority} fallback={<MapPin/>}/></div><div className="restaurant-copy"><div className="restaurant-title"><h2>{item.name}</h2><span>{item.distance}</span></div><div className="restaurant-meta"><b><Star fill="currentColor"/> {item.rating}</b><span>{item.price}</span><span>{item.category}</span></div></div></div>
     <div className="restaurant-actions"><button onClick={(event) => { event.stopPropagation(); activate(); }}><Info/>查看详情</button><button className={saved ? "saved" : ""} onClick={(event) => { event.stopPropagation(); toggle({ kind: "restaurant", id: item.id }); }}><Heart fill={saved ? "currentColor" : "none"}/>{saved ? "已收藏" : "收藏"}</button></div>
   </Card>;
 }
