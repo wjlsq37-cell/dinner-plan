@@ -149,6 +149,36 @@ test("mobile form controls keep a non-zooming font size", async ({ page }, testI
   await expect(page.getByLabel("AI 来源")).toHaveCSS("font-size", "16px");
 });
 
+test("developer mode never falls back to the default backend route", async ({ page }) => {
+  const operations: string[] = [];
+  let backendCalls = 0;
+  await page.route("**/api/backend/**", async (route) => {
+    backendCalls += 1;
+    await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "unexpected_backend" }) });
+  });
+  await page.route("**/api/direct", async (route) => {
+    const body = await route.request().postDataJSON();
+    operations.push(body.operation);
+    if (body.operation === "status") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ proxyReachable: true, backendConfigured: false, message: "开发者直连通道可用。" }) });
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ intent: "RECIPE_SINGLE", summary: "开发者模式生成完成", mealPlans: [], recipes: [], source: "AI_GENERATED", totalMatches: 0 }) });
+  });
+  await page.goto("/settings/developer");
+  await page.getByLabel("开发者功能").check();
+  await expect(page.getByText(/不会访问默认后端/)).toBeVisible();
+  await page.getByLabel("AI API Key").fill("test-only-key");
+  await page.getByRole("button", { name: "检测开发者直连配置" }).click();
+  await expect(page.getByText(/开发者直连通道可用/)).toBeVisible();
+  await page.getByRole("link", { name: /首页/ }).click();
+  await page.getByRole("button", { name: /自己做/ }).click();
+  await page.getByRole("button", { name: "单道菜" }).click();
+  await page.getByLabel("AI 生成").click();
+  await page.getByPlaceholder(/两荤一素/).fill("番茄炒蛋");
+  await page.getByRole("button", { name: "生成推荐" }).click();
+  await expect(page.getByText("开发者模式生成完成", { exact: true })).toBeVisible();
+  expect(operations).toEqual(["status", "cook"]);
+  expect(backendCalls).toBe(0);
+});
+
 test("nearby search keeps the original animation and shows a live timer", async ({ page }) => {
   await page.route("**/api/backend/recommend/restaurant", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 350));

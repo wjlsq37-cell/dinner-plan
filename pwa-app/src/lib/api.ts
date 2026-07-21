@@ -94,7 +94,9 @@ export class ApiGateway {
   }
 
   reverseGeocode(payload: ReverseGeocodeRequest, signal?: AbortSignal): Promise<ReverseGeocodeResponse> {
-    return requestJson("/api/location/reverse", { method: "POST", body: JSON.stringify(payload) }, signal, isReverseGeocodeResponse);
+    return this.settings.enabled
+      ? requestJson("/api/direct", { method: "POST", body: JSON.stringify({ operation: "reverseGeocode", settings: this.settings, payload }) }, signal, isReverseGeocodeResponse)
+      : requestJson("/api/location/reverse", { method: "POST", body: JSON.stringify(payload) }, signal, isReverseGeocodeResponse);
   }
 
   recipe(id: string, signal?: AbortSignal): Promise<Recipe> {
@@ -104,10 +106,13 @@ export class ApiGateway {
   }
 
   mealPlan(id: string, signal?: AbortSignal): Promise<MealPlan> {
+    if (this.settings.enabled) return Promise.reject(new ApiError("config", "开发者模式的组合菜单详情来自当前生成结果，请重新生成菜单。"));
     return requestJson(`/api/backend/meal-plans/${encodeURIComponent(id)}`, undefined, signal, isMealPlan);
   }
 
   status(signal?: AbortSignal): Promise<ServiceStatus> {
-    return requestJson("/api/status", { method: "GET" }, signal, isServiceStatus);
+    return this.settings.enabled
+      ? requestJson("/api/direct", { method: "POST", body: JSON.stringify({ operation: "status", settings: this.settings }) }, signal, isServiceStatus)
+      : requestJson("/api/status", { method: "GET" }, signal, isServiceStatus);
   }
 }

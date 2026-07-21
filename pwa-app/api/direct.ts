@@ -1,8 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import type { DeveloperSettings, RecommendationRequest, Recipe, Restaurant } from "../src/types.js";
+import type { DeveloperSettings, RecommendationRequest, Recipe, Restaurant, ReverseGeocodeRequest } from "../src/types.js";
 import { fetchJson, isBodyAllowed, json, requirePost, safeHttpsUrl, safeMessage } from "../server/shared.js";
 
-type DirectBody = { operation?: "cook" | "restaurant" | "recipe"; settings?: DeveloperSettings; payload?: RecommendationRequest; id?: string };
+type DirectOperation = "cook" | "restaurant" | "recipe" | "reverseGeocode" | "status";
+type DirectBody = { operation?: DirectOperation; settings?: DeveloperSettings; payload?: RecommendationRequest | ReverseGeocodeRequest; id?: string };
 
 function stripCodeFence(value: string) {
   return value.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
@@ -18,6 +19,47 @@ function normalizeRecipe(raw: any, index: number): Recipe {
     steps: Array.isArray(raw.steps) ? raw.steps.map((step: any) => String(step.text || step)) : [], tips: String(raw.tips || "按个人口味调整调味。"),
     ratingStars: Number(raw.ratingStars) || undefined, source: String(raw.source || "ai"), stepImageUrls: Array.isArray(raw.stepImageUrls) ? raw.stepImageUrls.map(String) : []
   };
+}
+
+function directStatus(settings: DeveloperSettings) {
+  const missing: string[] = [];
+  if (!settings.aiBaseUrl || !settings.aiApiKey || !settings.aiModel) missing.push("AI 配置");
+  if (!settings.amapWebKey) missing.push("高德 Web Key");
+  if (settings.recipeApiSource === "mxnzp" && (!settings.recipeApiAppId || !settings.recipeApiSecret)) missing.push("mxnzp 密钥");
+  if (settings.recipeApiSource === "wanwei" && (!settings.recipeApiAppId || !settings.wanweiRecipeAppKey)) missing.push("万维易源密钥");
+  if (settings.recipeApiSource === "custom" && (!settings.recipeApiBaseUrl || !settings.recipeApiAppId || !settings.recipeApiSecret)) missing.push("自定义菜谱配置");
+  return { proxyReachable: true, backendConfigured: missing.length === 0, message: missing.length ? `开发者直连通道可用，尚缺少：${missing.join("、")}。` : "开发者直连通道和第三方配置均可用。" };
+}
+
+function validCoordinate(latitude: number, longitude: number): boolean {
+  return Number.isFinite(latitude) && Number.isFinite(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
+}
+
+function addressText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function addressFromPayload(payload: Record<string, any>): string {
+  const regeocode = payload.regeocode && typeof payload.regeocode === "object" ? payload.regeocode : {};
+  const formatted = addressText(regeocode.formatted_address);
+  if (formatted) return formatted;
+  const component = regeocode.addressComponent && typeof regeocode.addressComponent === "object" ? regeocode.addressComponent : {};
+  const street = component.streetNumber && typeof component.streetNumber === "object" ? component.streetNumber : {};
+  return [component.province, component.city, component.district, component.township, street.street, street.number].map(addressText).filter(Boolean).join("");
+}
+
+async function reverseGeocode(settings: DeveloperSettings, payload: ReverseGeocodeRequest) {
+  if (!settings.amapWebKey) throw new Error("missing_amap_key");
+  if (!validCoordinate(payload.latitude, payload.longitude)) throw new Error("invalid_location");
+  const endpoint = new URL("https://restapi.amap.com/v3/geocode/regeo");
+  endpoint.searchParams.set("key", settings.amapWebKey);
+  endpoint.searchParams.set("location", `${payload.longitude},${payload.latitude}`);
+  endpoint.searchParams.set("extensions", "base");
+  endpoint.searchParams.set("radius", "100");
+  const result = await fetchJson(endpoint, {}, settings.maxWaitSeconds);
+  const address = result?.status === "1" ? addressFromPayload(result) : "";
+  if (!address) throw new Error("address_unavailable");
+  return { location: { latitude: payload.latitude, longitude: payload.longitude, text: address } };
 }
 
 async function aiCook(settings: DeveloperSettings, payload: RecommendationRequest) {
@@ -85,9 +127,17 @@ async function restaurantSearch(settings: DeveloperSettings, payload: Recommenda
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (!requirePost(request, response)) return;
   if (!isBodyAllowed(request)) return json(response, 413, { error: "body_too_large", message: "请求内容过大。" });
-  const body = request.body as DirectBody; if (!body.settings || !body.operation || (body.operation !== "recipe" && !body.payload) || (body.operation === "recipe" && !body.id)) return json(response, 400, { error: "invalid_request", message: "请求参数不完整。" });
+  const body = request.body as DirectBody;
+  const allowedOperations: DirectOperation[] = ["cook", "restaurant", "recipe", "reverseGeocode", "status"];
+  const needsPayload = body.operation === "cook" || body.operation === "restaurant" || body.operation === "reverseGeocode";
+  if (!body.settings || !body.operation || !allowedOperations.includes(body.operation) || (needsPayload && !body.payload) || (body.operation === "recipe" && !body.id)) return json(response, 400, { error: "invalid_request", message: "请求参数不完整。" });
   try {
-    const result = body.operation === "recipe" ? await recipeDetail(body.settings, body.id!) : body.operation === "restaurant" ? await restaurantSearch(body.settings, body.payload!) : body.payload!.cookSource === "AI_GENERATED" ? await aiCook(body.settings, body.payload!) : await recipeSearch(body.settings, body.payload!);
+    const result = body.operation === "status" ? directStatus(body.settings)
+      : body.operation === "recipe" ? await recipeDetail(body.settings, body.id!)
+      : body.operation === "reverseGeocode" ? await reverseGeocode(body.settings, body.payload as ReverseGeocodeRequest)
+      : body.operation === "restaurant" ? await restaurantSearch(body.settings, body.payload as RecommendationRequest)
+      : (body.payload as RecommendationRequest).cookSource === "AI_GENERATED" ? await aiCook(body.settings, body.payload as RecommendationRequest)
+      : await recipeSearch(body.settings, body.payload as RecommendationRequest);
     json(response, 200, result);
   } catch (error) { json(response, 502, { error: "direct_error", message: error instanceof Error && error.message.startsWith("missing_") ? "开发者模式配置不完整，请检查密钥。" : safeMessage(error) }); }
 }

@@ -48,7 +48,7 @@ npm run test:e2e
 
 如果本地 `.vercel/project.json` 仍显示 `dinner-plan`，先在仓库根目录重新执行 `vercel link --repo`，把 `pwa-app` 目录关联到 `dinner-plan-pwa`。部署前先确认现有后端的 `/api/health` 正常。
 
-开发者模式的 AI、高德和菜谱密钥只保存在当前浏览器 IndexedDB。代理不记录请求内容，并拒绝 HTTP、本机、内网、链路本地及云元数据地址。
+开发者模式的 AI、高德和菜谱密钥只保存在当前浏览器 IndexedDB。开启后，做饭推荐、附近搜索、逆地理编码、菜谱详情和配置检测统一请求同源 `/api/direct`，不会访问 `UPSTREAM_API_BASE_URL` 或 `/api/backend/*`。该 Function 只负责安全访问用户配置的第三方服务，不记录请求内容，并拒绝 HTTP、本机、内网、链路本地及云元数据地址；浏览器不会直接向第三方暴露密钥。
 
 ## 离线边界
 

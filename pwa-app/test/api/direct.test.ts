@@ -25,6 +25,24 @@ function request(body: unknown) { return { method: "POST", headers: {}, body } a
 beforeEach(() => fetchJsonMock.mockReset());
 
 describe("developer direct operations", () => {
+  it("reports direct configuration without contacting the default backend", async () => {
+    const response = responseMock();
+    await handler(request({ operation: "status", settings: settingsBase }), response);
+    expect(fetchJsonMock).not.toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.json).toHaveBeenCalledWith(expect.objectContaining({ proxyReachable: true, backendConfigured: false, message: expect.stringContaining("开发者直连通道可用") }));
+  });
+
+  it("reverse geocodes with the developer Amap key", async () => {
+    fetchJsonMock.mockResolvedValue({ status: "1", regeocode: { formatted_address: "浙江省杭州市上城区湖滨街道" } });
+    const response = responseMock();
+    await handler(request({ operation: "reverseGeocode", settings: { ...settingsBase, amapWebKey: "developer-map-key" }, payload: { latitude: 30.25, longitude: 120.16 } }), response);
+    const endpoint = fetchJsonMock.mock.calls[0][0] as URL;
+    expect(endpoint.hostname).toBe("restapi.amap.com");
+    expect(endpoint.searchParams.get("key")).toBe("developer-map-key");
+    expect(response.json).toHaveBeenCalledWith({ location: { latitude: 30.25, longitude: 120.16, text: "浙江省杭州市上城区湖滨街道" } });
+  });
+
   it("normalizes an AI cook response", async () => {
     fetchJsonMock.mockResolvedValue({ choices: [{ message: { content: JSON.stringify({ summary: "完成", mealPlans: [], recipes: [{ id: "r1", name: "番茄炒蛋" }] }) } }] });
     const response = responseMock();
@@ -54,4 +72,3 @@ describe("developer direct operations", () => {
     expect(detailResponse.json).toHaveBeenCalledWith(expect.objectContaining({ id: "mxnzp_42", steps: ["煮面"] }));
   });
 });
-

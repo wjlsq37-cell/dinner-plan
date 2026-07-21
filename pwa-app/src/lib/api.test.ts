@@ -87,6 +87,13 @@ describe("ApiGateway error mapping", () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ...defaultState.recipeCache[0] }), { status: 200, headers: { "content-type": "application/json" } }));
     await gateway.recipe("recipe-id");
     expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({ operation: "recipe", id: "recipe-id" });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ location: { latitude: 30.25, longitude: 120.16, text: "杭州市湖滨街道" } }), { status: 200, headers: { "content-type": "application/json" } }));
+    await gateway.reverseGeocode({ latitude: 30.25, longitude: 120.16 });
+    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toMatchObject({ operation: "reverseGeocode", payload: { latitude: 30.25, longitude: 120.16 } });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ proxyReachable: true, backendConfigured: false, message: "开发者直连通道可用。" }), { status: 200, headers: { "content-type": "application/json" } }));
+    await gateway.status();
+    expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body))).toMatchObject({ operation: "status" });
+    await expect(gateway.mealPlan("meal-id")).rejects.toMatchObject({ kind: "config" });
     expect(fetchMock.mock.calls.every((call) => call[0] === "/api/direct")).toBe(true);
   });
 
