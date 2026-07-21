@@ -149,33 +149,41 @@ test("mobile form controls keep a non-zooming font size", async ({ page }, testI
   await expect(page.getByLabel("AI 来源")).toHaveCSS("font-size", "16px");
 });
 
-test("developer mode never falls back to the default backend route", async ({ page }) => {
-  const operations: string[] = [];
+test("developer browser-direct generation survives navigation without calling Vercel APIs", async ({ page }) => {
+  let directFunctionCalls = 0;
   let backendCalls = 0;
   await page.route("**/api/backend/**", async (route) => {
     backendCalls += 1;
     await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "unexpected_backend" }) });
   });
-  await page.route("**/api/direct", async (route) => {
-    const body = await route.request().postDataJSON();
-    operations.push(body.operation);
-    if (body.operation === "status") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ proxyReachable: true, backendConfigured: false, message: "开发者直连通道可用。" }) });
-    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ intent: "RECIPE_SINGLE", summary: "开发者模式生成完成", mealPlans: [], recipes: [], source: "AI_GENERATED", totalMatches: 0 }) });
+  await page.route("**/api/direct", async (route) => { directFunctionCalls += 1; await route.fulfill({ status: 500 }); });
+  let externalCalls = 0;
+  await page.route("https://api.deepseek.com/**", async (route) => {
+    const corsHeaders = { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization,content-type", "access-control-allow-methods": "POST,OPTIONS" };
+    if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: corsHeaders });
+    externalCalls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    await route.fulfill({ status: 200, contentType: "application/json", headers: corsHeaders, body: JSON.stringify({ choices: [{ message: { content: JSON.stringify({ summary: "浏览器直连生成完成", recipes: [{ id: "browser-direct-result", name: "直连番茄炒蛋", cookTime: "10 分钟", difficulty: "简单" }] }) } }] }) });
   });
   await page.goto("/settings/developer");
   await page.getByLabel("开发者功能").check();
-  await expect(page.getByText(/不会访问默认后端/)).toBeVisible();
+  await expect(page.getByText(/不会经过 Vercel 或默认后端/)).toBeVisible();
   await page.getByLabel("AI API Key").fill("test-only-key");
-  await page.getByRole("button", { name: "检测开发者直连配置" }).click();
-  await expect(page.getByText(/开发者直连通道可用/)).toBeVisible();
+  await page.getByRole("button", { name: "检查浏览器直连配置" }).click();
+  await expect(page.getByText(/浏览器直连已启用/)).toBeVisible();
   await page.getByRole("link", { name: /首页/ }).click();
   await page.getByRole("button", { name: /自己做/ }).click();
   await page.getByRole("button", { name: "单道菜" }).click();
   await page.getByLabel("AI 生成").click();
   await page.getByPlaceholder(/两荤一素/).fill("番茄炒蛋");
   await page.getByRole("button", { name: "生成推荐" }).click();
-  await expect(page.getByText("开发者模式生成完成", { exact: true })).toBeVisible();
-  expect(operations).toEqual(["status", "cook"]);
+  await page.getByRole("link", { name: /收藏/ }).click();
+  await expect(page.getByRole("heading", { name: "收藏" })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole("heading", { name: "直连番茄炒蛋" })).toBeVisible();
+  await expect(page.getByText("浏览器直连生成完成", { exact: true })).toBeVisible();
+  expect(externalCalls).toBe(1);
+  expect(directFunctionCalls).toBe(0);
   expect(backendCalls).toBe(0);
 });
 

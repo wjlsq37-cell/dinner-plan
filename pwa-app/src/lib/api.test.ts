@@ -49,12 +49,13 @@ describe("ApiGateway error mapping", () => {
     await expect(new ApiGateway(defaultState.developerSettings).status()).rejects.toMatchObject({ kind: "invalid_response", status: 200 });
   });
 
-  it("uses the developer endpoint without exposing settings in the URL", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ intent: "RECIPE_SINGLE", summary: "ok", mealPlans: [], recipes: [], source: "AI_GENERATED", totalMatches: 0 }), { status: 200, headers: { "content-type": "application/json" } }));
+  it("uses the configured AI endpoint directly without calling Vercel", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ summary: "ok", recipes: [{ name: "番茄炒蛋" }] }) } }] }), { status: 200, headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", fetchMock);
     await new ApiGateway({ ...defaultState.developerSettings, enabled: true, aiApiKey: "secret" }).cook({ query: "test", mode: "RECIPE_SINGLE", cookSource: "AI_GENERATED" });
-    expect(fetchMock.mock.calls[0][0]).toBe("/api/direct");
-    expect(String(fetchMock.mock.calls[0][0])).not.toContain("secret");
+    expect(String(fetchMock.mock.calls[0][0])).toBe("https://api.deepseek.com/v1/chat/completions");
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get("authorization")).toBe("Bearer secret");
+    expect(fetchMock.mock.calls.some((call) => String(call[0]).startsWith("/api/"))).toBe(false);
   });
 
   it("sends the AI source to the backend and rejects a silent recipe database fallback", async () => {
@@ -78,23 +79,30 @@ describe("ApiGateway error mapping", () => {
     await expect(new ApiGateway(defaultState.developerSettings).cook({ query: "土豆牛肉", mode: "RECIPE_SINGLE", cookSource: "AI_GENERATED" })).resolves.toMatchObject({ summary: "AI 已生成" });
   });
 
-  it("routes every developer operation through the fixed direct endpoint", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ restaurants: [] }), { status: 200, headers: { "content-type": "application/json" } }));
+  it("routes developer operations straight to configured third-party hosts", async () => {
+    const fetchMock = vi.fn().mockImplementation(async (input: URL | RequestInfo) => {
+      const url = new URL(String(input));
+      if (url.pathname.includes("cookbook/details")) return new Response(JSON.stringify({ data: { id: "42", name: "牛肉面" } }), { status: 200 });
+      if (url.pathname.includes("geocode/regeo")) return new Response(JSON.stringify({ status: "1", regeocode: { formatted_address: "杭州市湖滨街道" } }), { status: 200 });
+      return new Response(JSON.stringify({ pois: [] }), { status: 200 });
+    });
     vi.stubGlobal("fetch", fetchMock);
-    const gateway = new ApiGateway({ ...defaultState.developerSettings, enabled: true });
-    await gateway.restaurants({ query: "面馆", mode: "RESTAURANT" });
-    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ operation: "restaurant" });
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ...defaultState.recipeCache[0] }), { status: 200, headers: { "content-type": "application/json" } }));
-    await gateway.recipe("recipe-id");
-    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toMatchObject({ operation: "recipe", id: "recipe-id" });
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ location: { latitude: 30.25, longitude: 120.16, text: "杭州市湖滨街道" } }), { status: 200, headers: { "content-type": "application/json" } }));
+    const gateway = new ApiGateway({ ...defaultState.developerSettings, enabled: true, amapWebKey: "amap-key", recipeApiSource: "mxnzp", recipeApiAppId: "app-id", recipeApiSecret: "app-secret" });
+    await gateway.restaurants({ query: "面馆", mode: "RESTAURANT", location: { latitude: 30.25, longitude: 120.16 } });
+    await gateway.recipe("mxnzp_42");
     await gateway.reverseGeocode({ latitude: 30.25, longitude: 120.16 });
-    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toMatchObject({ operation: "reverseGeocode", payload: { latitude: 30.25, longitude: 120.16 } });
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ proxyReachable: true, backendConfigured: false, message: "开发者直连通道可用。" }), { status: 200, headers: { "content-type": "application/json" } }));
-    await gateway.status();
-    expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body))).toMatchObject({ operation: "status" });
+    await expect(gateway.status()).resolves.toMatchObject({ proxyReachable: true, message: expect.stringContaining("浏览器直连") });
     await expect(gateway.mealPlan("meal-id")).rejects.toMatchObject({ kind: "config" });
-    expect(fetchMock.mock.calls.every((call) => call[0] === "/api/direct")).toBe(true);
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls).toHaveLength(3);
+    expect(urls.every((url) => url.startsWith("https://"))).toBe(true);
+    expect(urls.some((url) => url.includes("vercel") || url.includes("/api/direct") || url.includes("/api/backend"))).toBe(false);
+  });
+
+  it("maps browser CORS failures separately from Vercel proxy failures", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    const gateway = new ApiGateway({ ...defaultState.developerSettings, enabled: true, aiApiKey: "secret" });
+    await expect(gateway.cook({ query: "test", mode: "RECIPE_SINGLE", cookSource: "AI_GENERATED" })).rejects.toMatchObject({ kind: "cors" });
   });
 
   it("uses the fixed same-origin reverse geocode endpoint", async () => {

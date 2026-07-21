@@ -1,11 +1,8 @@
 import type { ApiErrorKind, CookRecommendationResponse, DeveloperSettings, MealPlan, Recipe, RecommendationRequest, RestaurantRecommendationResponse, ReverseGeocodeRequest, ReverseGeocodeResponse, ServiceStatus } from "../types";
+import { ApiError } from "./api-error";
+import { developerCook, developerRecipe, developerRestaurants, developerReverseGeocode, developerStatus } from "./developer-direct";
 
-export class ApiError extends Error {
-  constructor(public kind: ApiErrorKind, message: string, public status?: number) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
+export { ApiError } from "./api-error";
 
 type Validator<T> = (body: unknown) => body is T;
 
@@ -74,7 +71,7 @@ export class ApiGateway {
 
   async cook(payload: RecommendationRequest, signal?: AbortSignal): Promise<CookRecommendationResponse> {
     const result = await (this.settings.enabled
-      ? requestJson("/api/direct", { method: "POST", body: JSON.stringify({ operation: "cook", settings: this.settings, payload }) }, signal, isCookResponse)
+      ? developerCook(this.settings, payload, signal)
       : requestJson("/api/backend/recommend/cook", { method: "POST", body: JSON.stringify(payload) }, signal, isCookResponse));
     if (payload.cookSource === "AI_GENERATED" && isDatabaseFallback(result)) {
       throw new ApiError("ai_unavailable", "AI 生成未返回有效结果，已阻止自动切换到菜谱库。");
@@ -89,19 +86,19 @@ export class ApiGateway {
 
   restaurants(payload: RecommendationRequest, signal?: AbortSignal): Promise<RestaurantRecommendationResponse> {
     return this.settings.enabled
-      ? requestJson("/api/direct", { method: "POST", body: JSON.stringify({ operation: "restaurant", settings: this.settings, payload }) }, signal, isRestaurantResponse)
+      ? developerRestaurants(this.settings, payload, signal)
       : requestJson("/api/backend/recommend/restaurant", { method: "POST", body: JSON.stringify(payload) }, signal, isRestaurantResponse);
   }
 
   reverseGeocode(payload: ReverseGeocodeRequest, signal?: AbortSignal): Promise<ReverseGeocodeResponse> {
     return this.settings.enabled
-      ? requestJson("/api/direct", { method: "POST", body: JSON.stringify({ operation: "reverseGeocode", settings: this.settings, payload }) }, signal, isReverseGeocodeResponse)
+      ? developerReverseGeocode(this.settings, payload, signal)
       : requestJson("/api/location/reverse", { method: "POST", body: JSON.stringify(payload) }, signal, isReverseGeocodeResponse);
   }
 
   recipe(id: string, signal?: AbortSignal): Promise<Recipe> {
     return this.settings.enabled
-      ? requestJson("/api/direct", { method: "POST", body: JSON.stringify({ operation: "recipe", settings: this.settings, id }) }, signal, isRecipe)
+      ? developerRecipe(this.settings, id, signal)
       : requestJson(`/api/backend/recipes/${encodeURIComponent(id)}`, undefined, signal, isRecipe);
   }
 
@@ -112,7 +109,7 @@ export class ApiGateway {
 
   status(signal?: AbortSignal): Promise<ServiceStatus> {
     return this.settings.enabled
-      ? requestJson("/api/direct", { method: "POST", body: JSON.stringify({ operation: "status", settings: this.settings }) }, signal, isServiceStatus)
+      ? Promise.resolve(developerStatus(this.settings))
       : requestJson("/api/status", { method: "GET" }, signal, isServiceStatus);
   }
 }

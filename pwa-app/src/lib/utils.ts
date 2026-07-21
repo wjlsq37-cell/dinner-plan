@@ -69,6 +69,7 @@ export function friendlyError(error: unknown): string {
       proxy_runtime: "网页代理服务启动失败，请稍后重试或重新部署。",
       auth: "服务鉴权失败，请检查代理访问令牌。",
       config: "服务配置不完整，请检查开发者设置。",
+      cors: "浏览器无法直连第三方接口；请确认该服务允许网页跨域访问，或更换支持 CORS 的接口。",
       timeout: "请求等待超时，请稍后重试。",
       upstream: "上游服务暂时不可用，请稍后再试。",
       invalid_response: "服务返回了无法识别的结果，请稍后再试。",
