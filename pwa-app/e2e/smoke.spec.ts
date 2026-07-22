@@ -10,6 +10,48 @@ test("home matches the four primary journeys", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "收藏" })).toBeVisible();
 });
 
+test("home decision cards survive navigation and reload until the next decision replaces them", async ({ page }) => {
+  let recipeGeneration = 0;
+  let restaurantGeneration = 0;
+  await page.route("**/api/backend/recommend/cook", async (route) => {
+    recipeGeneration += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ intent: "RECIPE_SINGLE", summary: "已决定", mealPlans: [], recipes: [{ id: `decision-recipe-${recipeGeneration}`, name: `决定菜谱 ${recipeGeneration}`, cuisine: "家常菜", taste: [], tags: [], difficulty: "简单", cookTime: "20 分钟", servings: "2 人份", coverUrl: "", reason: "", ingredients: [], steps: [], tips: "" }], source: "DATABASE", totalMatches: 1 })
+    });
+  });
+  await page.route("**/api/backend/recommend/restaurant", async (route) => {
+    restaurantGeneration += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ restaurants: [{ id: `decision-restaurant-${restaurantGeneration}`, source: "test", name: `决定餐厅 ${restaurantGeneration}`, category: "餐饮", tags: [], address: "测试地址", distance: "500m", rating: "4.8", price: "人均 ¥50", open: "营业中", phone: "", coverUrl: "", reason: "", latitude: 30.25, longitude: 120.16 }] })
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "帮我决定吃什么" }).click();
+  await expect(page.getByRole("heading", { name: "决定菜谱 1" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "决定餐厅 1" })).toBeVisible();
+
+  await page.getByRole("link", { name: /收藏/ }).click();
+  await page.getByRole("link", { name: /首页/ }).click();
+  await expect(page.getByRole("heading", { name: "决定菜谱 1" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "决定餐厅 1" })).toBeVisible();
+
+  await page.waitForTimeout(100);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "决定菜谱 1" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "决定餐厅 1" })).toBeVisible();
+
+  await page.getByRole("button", { name: "帮我决定吃什么" }).click();
+  await expect(page.getByRole("heading", { name: "决定菜谱 2" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "决定餐厅 2" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "决定菜谱 1" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "决定餐厅 1" })).toHaveCount(0);
+});
+
 test("cook flow keeps results but clears the search query after reopening", async ({ page }) => {
   await page.route("**/api/backend/recommend/cook", async (route) => route.fulfill({
     status: 200,

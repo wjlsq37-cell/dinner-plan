@@ -142,6 +142,11 @@ export interface SavedRef {
   id: string;
 }
 
+export interface HomeDecision {
+  recipe?: Recipe;
+  restaurant?: Restaurant;
+}
+
 export interface PersistedState {
   version: 1;
   preferences: UserPreference;
@@ -152,6 +157,7 @@ export interface PersistedState {
   mealCache: MealPlan[];
   recipeCache: Recipe[];
   restaurantCache: Restaurant[];
+  homeDecision: HomeDecision;
   lastCookQuery: string;
   lastCookMode: RecommendMode;
   lastCookSource: CookSource;

@@ -198,9 +198,9 @@ function Layout({ children }: { children: ReactNode }) {
 }
 
 function HomePage() {
-  const { state, isSaved, toggle, viewed, mergeRecipes, mergeRestaurants } = useApp(); const navigate = useNavigate();
+  const { state, patch, isSaved, toggle, viewed, mergeRecipes, mergeRestaurants } = useApp(); const navigate = useNavigate();
   const [loading, setLoading] = useState(false); const [error, setError] = useState("");
-  const [decision, setDecision] = useState<{ recipe?: Recipe; restaurant?: Restaurant }>({});
+  const decision = state.homeDecision;
   const decide = async () => {
     if (!navigator.onLine) return setError("当前处于离线状态，联网后再帮你决定。");
     setLoading(true); setError(""); const gateway = new ApiGateway(state.developerSettings);
@@ -209,12 +209,12 @@ function HomePage() {
         gateway.cook({ query: "", mode: "RECIPE_SINGLE", cookSource: state.lastCookSource, preferences: state.preferences, broadSearch: true }),
         gateway.restaurants({ query: "", mode: "RESTAURANT", preferences: state.preferences, location: state.location, broadSearch: true })
       ]);
-      const recipes = cook.status === "fulfilled" ? cook.value.recipes : state.lastRecipes;
-      const restaurants = nearby.status === "fulfilled" ? nearby.value.restaurants : state.lastRestaurants;
-      const recipe = recipes[Math.floor(Math.random() * recipes.length)]; const restaurant = restaurants[Math.floor(Math.random() * restaurants.length)];
-      setDecision({ recipe, restaurant });
+      const recipes = cook.status === "fulfilled" ? cook.value.recipes : [];
+      const restaurants = nearby.status === "fulfilled" ? nearby.value.restaurants : [];
+      const nextRecipe = recipes[Math.floor(Math.random() * recipes.length)]; const nextRestaurant = restaurants[Math.floor(Math.random() * restaurants.length)];
       mergeRecipes(recipes); mergeRestaurants(restaurants);
-      if (!recipe && !restaurant) setError("暂时没找到合适结果，可以稍后再试。");
+      if (nextRecipe || nextRestaurant) patch({ homeDecision: { recipe: nextRecipe || decision.recipe, restaurant: nextRestaurant || decision.restaurant } });
+      else setError("暂时没找到合适结果，已保留上一次的今日灵感。");
     } catch (cause) { setError(friendlyError(cause)); } finally { setLoading(false); }
   };
   const hour = new Date().getHours();

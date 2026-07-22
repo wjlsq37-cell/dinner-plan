@@ -15,6 +15,7 @@ export const defaultState: PersistedState = {
   mealCache: seedMealPlans,
   recipeCache: seedRecipes,
   restaurantCache: seedRestaurants,
+  homeDecision: {},
   lastCookQuery: "",
   lastCookMode: "RECIPE_COMBO",
   lastCookSource: "DATABASE",
@@ -32,7 +33,7 @@ export async function loadState(): Promise<PersistedState> {
   try {
     const saved = await (await db()).get(STORE_NAME, "app");
     if (!saved || saved.version !== 1) return structuredClone(defaultState);
-    return { ...structuredClone(defaultState), ...saved, lastCookQuery: "", lastRestaurantQuery: "", preferences: { ...defaultState.preferences, ...saved.preferences }, developerSettings: { ...defaultState.developerSettings, ...saved.developerSettings } };
+    return { ...structuredClone(defaultState), ...saved, homeDecision: saved.homeDecision ?? {}, lastCookQuery: "", lastRestaurantQuery: "", preferences: { ...defaultState.preferences, ...saved.preferences }, developerSettings: { ...defaultState.developerSettings, ...saved.developerSettings } };
   } catch {
     return structuredClone(defaultState);
   }
