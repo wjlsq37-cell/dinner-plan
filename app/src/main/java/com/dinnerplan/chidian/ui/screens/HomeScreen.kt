@@ -1,10 +1,12 @@
 package com.dinnerplan.chidian.ui.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -40,12 +43,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.paint
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,16 +58,19 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.dinnerplan.chidian.R
 import com.dinnerplan.chidian.decisionGreetingForHour
-import com.dinnerplan.chidian.decisionSubcopyForHour
 import com.dinnerplan.chidian.Recipe
 import com.dinnerplan.chidian.Restaurant
 import com.dinnerplan.chidian.ui.components.FoodCard
+import com.dinnerplan.chidian.ui.components.AppIcon
 import com.dinnerplan.chidian.ui.components.FoodChip
 import com.dinnerplan.chidian.ui.components.FoodTone
 import com.dinnerplan.chidian.ui.components.StaggeredVisible
+import com.dinnerplan.chidian.ui.components.ThemedActionIcon
 import com.dinnerplan.chidian.ui.components.pressScale
 import com.dinnerplan.chidian.ui.theme.ChiDianColors
+import com.dinnerplan.chidian.ui.theme.ChiDianThemeValues
 import java.time.LocalTime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -106,7 +114,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .weight(1f)
                             .height(166.dp),
-                        icon = Icons.Filled.Restaurant,
+                        icon = AppIcon.Restaurant,
                         title = "自己做",
                         description = "菜谱和成套晚餐",
                         tint = ChiDianColors.ActionPrimary,
@@ -116,7 +124,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .weight(1f)
                             .height(166.dp),
-                        icon = Icons.Filled.Place,
+                        icon = AppIcon.Place,
                         title = "附近吃",
                         description = "按位置找顺路好店",
                         tint = ChiDianColors.LocationAccent,
@@ -145,53 +153,79 @@ fun HomeScreen(
 private fun DecisionCard(onDecision: () -> Unit, isDecisionLoading: Boolean) {
     val hour = remember { LocalTime.now().hour }
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Color.White,
-        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(180.dp),
+        color = ChiDianColors.Surface,
+        shape = ChiDianThemeValues.cardShape,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
         border = BorderStroke(1.dp, ChiDianColors.BorderSubtle)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        BoxWithConstraints(
+            modifier = Modifier.paint(
+                painter = painterResource(
+                    if (ChiDianThemeValues.isGirlPink) {
+                        R.drawable.decision_card_girl_pink_v2
+                    } else {
+                        R.drawable.decision_card_default_v2
+                    }
+                ),
+                contentScale = ContentScale.Crop,
+                alpha = 0.9f,
+                sizeToIntrinsics = false
+            )
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+            Column(
+                modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Surface(color = ChiDianColors.ActionPrimarySoft, shape = RoundedCornerShape(999.dp)) {
-                        Icon(
-                            imageVector = Icons.Filled.AutoAwesome,
-                            contentDescription = null,
-                            tint = ChiDianColors.ActionPrimary,
-                            modifier = Modifier
-                                .padding(7.dp)
-                                .size(17.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Surface(color = ChiDianColors.ActionPrimarySoft, shape = RoundedCornerShape(999.dp)) {
+                            Icon(
+                                imageVector = Icons.Filled.AutoAwesome,
+                                contentDescription = null,
+                                tint = ChiDianColors.ActionPrimary,
+                                modifier = Modifier
+                                    .padding(7.dp)
+                                    .size(17.dp)
+                            )
+                        }
+                        Text("今日决策", color = ChiDianColors.ActionPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Surface(
+                        color = ChiDianColors.Surface.copy(alpha = 0.78f),
+                        shape = RoundedCornerShape(999.dp)
+                    ) {
+                        Text(
+                            "少纠结一点",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            color = ChiDianColors.Muted,
+                            fontSize = 12.sp
                         )
                     }
-                    Text("今日决策", color = ChiDianColors.ActionPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
-                Text("少纠结一点", color = ChiDianColors.Muted, fontSize = 12.sp)
+                Text(
+                    text = decisionGreetingForHour(hour),
+                    color = ChiDianColors.Ink,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Black,
+                    lineHeight = 30.sp
+                )
             }
-            Text(
-                text = decisionGreetingForHour(hour),
-                color = ChiDianColors.Ink,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Black,
-                lineHeight = 30.sp
-            )
-            Text(
-                text = decisionSubcopyForHour(hour),
-                color = ChiDianColors.Muted,
-                fontSize = 13.sp,
-                lineHeight = 19.sp
-            )
+            val decisionButtonWidth = minOf(maxWidth * 0.62f, 220.dp)
             Button(
                 onClick = onDecision,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 12.dp)
+                    .width(decisionButtonWidth)
+                    .heightIn(min = 42.dp),
                 enabled = !isDecisionLoading,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = ChiDianColors.ActionPrimary,
@@ -199,7 +233,8 @@ private fun DecisionCard(onDecision: () -> Unit, isDecisionLoading: Boolean) {
                     disabledContainerColor = ChiDianColors.ActionPrimary.copy(alpha = 0.62f),
                     disabledContentColor = Color.White
                 ),
-                shape = RoundedCornerShape(8.dp)
+                shape = ChiDianThemeValues.buttonShape,
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp)
             ) {
                 if (isDecisionLoading) {
                     CircularProgressIndicator(
@@ -208,10 +243,21 @@ private fun DecisionCard(onDecision: () -> Unit, isDecisionLoading: Boolean) {
                         color = Color.White
                     )
                 } else {
-                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(17.dp))
+                    ThemedActionIcon(
+                        icon = AppIcon.AiDecide,
+                        contentDescription = null,
+                        decorated = false,
+                        iconSize = 17.dp,
+                        defaultTint = Color.White
+                    )
                 }
-                Spacer(Modifier.width(8.dp))
-                Text(if (isDecisionLoading) "正在生成今日灵感..." else "帮我决定吃什么", fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    text = if (isDecisionLoading) "正在生成今日灵感..." else "帮我决定吃什么",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    maxLines = 1
+                )
             }
         }
     }
@@ -240,15 +286,27 @@ private fun HomeHeader(onSettings: () -> Unit) {
                 lineHeight = 19.sp
             )
         }
+        if (ChiDianThemeValues.isGirlPink) {
+            Image(
+                painter = painterResource(R.drawable.girl_pink_bunny_chef),
+                contentDescription = null,
+                modifier = Modifier.size(54.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
         IconButton(onClick = onSettings) {
-            Icon(Icons.Filled.Settings, contentDescription = "设置", tint = ChiDianColors.Ink)
+            ThemedActionIcon(
+                icon = AppIcon.Settings,
+                contentDescription = "设置",
+                defaultTint = ChiDianColors.Ink
+            )
         }
     }
 }
 
 @Composable
 private fun ActionPanel(
-    icon: ImageVector,
+    icon: AppIcon,
     title: String,
     description: String,
     tint: Color,
@@ -261,13 +319,13 @@ private fun ActionPanel(
             color = tint.copy(alpha = 0.12f),
             shape = RoundedCornerShape(999.dp)
         ) {
-            Icon(
-                imageVector = icon,
+            ThemedActionIcon(
+                icon = icon,
                 contentDescription = null,
-                tint = tint,
-                modifier = Modifier
-                    .padding(10.dp)
-                    .size(24.dp)
+                modifier = Modifier.padding(10.dp),
+                decorated = false,
+                iconSize = 24.dp,
+                defaultTint = tint
             )
         }
         Spacer(Modifier.weight(1f))
@@ -509,7 +567,7 @@ private fun InspirationCard(
         tonalElevation = 0.dp,
         shadowElevation = shadowElevation,
         border = BorderStroke(1.dp, borderColor),
-        shape = RoundedCornerShape(8.dp)
+        shape = ChiDianThemeValues.cardShape
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -519,7 +577,7 @@ private fun InspirationCard(
                 Box(
                     modifier = Modifier
                         .size(82.dp)
-                        .background(ChiDianColors.SurfaceSubtle, RoundedCornerShape(8.dp))
+                        .background(ChiDianColors.SurfaceSubtle, ChiDianThemeValues.controlShape)
                 ) {
                     AsyncImage(
                         model = imageUrl,
@@ -527,7 +585,7 @@ private fun InspirationCard(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxSize()
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(ChiDianThemeValues.controlShape)
                     )
                     Surface(
                         modifier = Modifier

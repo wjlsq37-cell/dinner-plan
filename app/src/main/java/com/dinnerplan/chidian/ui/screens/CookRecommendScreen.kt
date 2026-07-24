@@ -59,6 +59,7 @@ import com.dinnerplan.chidian.recipeMetaLine
 import com.dinnerplan.chidian.UserMessageContext
 import com.dinnerplan.chidian.UserReasonContext
 import com.dinnerplan.chidian.ui.components.EmptyFoodState
+import com.dinnerplan.chidian.ui.components.AppIcon
 import com.dinnerplan.chidian.ui.components.FoodCard
 import com.dinnerplan.chidian.ui.components.FoodChip
 import com.dinnerplan.chidian.ui.components.FoodModeChip
@@ -69,7 +70,9 @@ import com.dinnerplan.chidian.ui.components.FoodSegmentedButtons
 import com.dinnerplan.chidian.ui.components.ShimmerLine
 import com.dinnerplan.chidian.ui.components.StaggeredVisible
 import com.dinnerplan.chidian.ui.components.StatusCard
+import com.dinnerplan.chidian.ui.components.ThemedActionIcon
 import com.dinnerplan.chidian.ui.theme.ChiDianColors
+import com.dinnerplan.chidian.ui.theme.ChiDianThemeValues
 
 @Composable
 fun CookRecommendScreen(
@@ -99,7 +102,7 @@ fun CookRecommendScreen(
                     title = "在家做点啥",
                     subtitle = "按菜谱库或 AI 生成，推荐单道菜和组合菜单",
                     onBack = onBack,
-                    actionIcon = Icons.Filled.Refresh,
+                    actionIcon = AppIcon.Refresh,
                     onAction = onReroll
                 )
             }
@@ -114,9 +117,9 @@ fun CookRecommendScreen(
                     value = state.cookQuery,
                     onValueChange = { onStateChange(state.copy(cookQuery = it)) },
                     buttonIcon = if (state.cookSourceMode == CookSourceMode.Database) {
-                        Icons.Filled.Search
+                        AppIcon.Search
                     } else {
-                        Icons.Filled.AutoAwesome
+                        AppIcon.AiDecide
                     },
                     onSubmit = onSearch,
                     chips = listOf("两荤一素", "一汤", "主食", "微辣", "30 分钟"),
@@ -273,8 +276,18 @@ private fun CookLoadingStatus(
                     contentColor = ChiDianColors.ActionPrimary
                 ),
                 border = BorderStroke(1.dp, ChiDianColors.BorderSubtle),
-                shape = RoundedCornerShape(8.dp)
+                shape = ChiDianThemeValues.buttonShape
             ) {
+                if (ChiDianThemeValues.isGirlPink) {
+                    ThemedActionIcon(
+                        icon = AppIcon.Close,
+                        contentDescription = null,
+                        decorated = false,
+                        iconSize = 16.dp,
+                        defaultTint = ChiDianColors.ActionPrimary
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
                 Text("取消制作")
             }
         }
@@ -389,7 +402,7 @@ private fun CookCardCover(imageUrl: String, description: String) {
         modifier = Modifier
             .fillMaxWidth()
             .height(132.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(ChiDianThemeValues.controlShape)
     )
 }
 
@@ -398,7 +411,7 @@ private fun DishList(dishes: List<DishItem>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(ChiDianThemeValues.controlShape)
             .background(ChiDianColors.SurfaceSubtle)
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -450,9 +463,15 @@ private fun ActionRow(
                 contentColor = ChiDianColors.ActionPrimary
             ),
             border = BorderStroke(1.dp, ChiDianColors.BorderSubtle),
-            shape = RoundedCornerShape(8.dp)
+            shape = ChiDianThemeValues.buttonShape
         ) {
-            Icon(Icons.Filled.Info, contentDescription = null, modifier = Modifier.size(16.dp))
+            ThemedActionIcon(
+                icon = AppIcon.Info,
+                contentDescription = null,
+                decorated = false,
+                iconSize = 16.dp,
+                defaultTint = ChiDianColors.ActionPrimary
+            )
             Spacer(Modifier.width(6.dp))
             Text(primaryText, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -460,16 +479,18 @@ private fun ActionRow(
             onClick = onSave,
             modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (isSaved) ChiDianColors.ActionPrimary else Color.White,
+                containerColor = if (isSaved) ChiDianColors.ActionPrimary else ChiDianColors.Surface,
                 contentColor = if (isSaved) Color.White else ChiDianColors.Ink
             ),
             border = if (isSaved) null else BorderStroke(1.dp, ChiDianColors.BorderSubtle),
-            shape = RoundedCornerShape(8.dp)
+            shape = ChiDianThemeValues.buttonShape
         ) {
-            Icon(
-                imageVector = if (isSaved) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+            ThemedActionIcon(
+                icon = if (isSaved) AppIcon.Favorite else AppIcon.FavoriteBorder,
                 contentDescription = null,
-                modifier = Modifier.size(16.dp)
+                decorated = false,
+                iconSize = 16.dp,
+                defaultTint = if (isSaved) Color.White else ChiDianColors.Ink
             )
             Spacer(Modifier.width(6.dp))
             Text(if (isSaved) "已收藏" else "收藏", maxLines = 1, overflow = TextOverflow.Ellipsis)

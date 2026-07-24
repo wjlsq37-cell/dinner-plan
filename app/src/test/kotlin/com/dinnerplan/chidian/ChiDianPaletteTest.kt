@@ -1,7 +1,8 @@
 package com.dinnerplan.chidian
 
 import androidx.compose.ui.graphics.toArgb
-import com.dinnerplan.chidian.ui.theme.ChiDianColors
+import com.dinnerplan.chidian.ui.theme.AppThemeStyle
+import com.dinnerplan.chidian.ui.theme.ChiDianPalettes
 import kotlin.math.pow
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -10,19 +11,20 @@ import kotlin.test.assertTrue
 class ChiDianPaletteTest {
     @Test
     fun paletteUsesBrightAppetiteBase() {
-        assertEquals(0xFFFFFBF4, ChiDianColors.Canvas.toArgb().toLong() and 0xFFFFFFFF)
-        assertEquals(0xFFFF4F3E, ChiDianColors.Tomato.toArgb().toLong() and 0xFFFFFFFF)
-        assertEquals(0xFF35D07F, ChiDianColors.Mint.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFFFFFBF4, ChiDianPalettes.Default.canvas.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFFFF4F3E, ChiDianPalettes.Default.tomato.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFF35D07F, ChiDianPalettes.Default.mint.toArgb().toLong() and 0xFFFFFFFF)
     }
 
     @Test
     fun paletteProvidesRoleColorsForConsistentFoodTheme() {
-        assertEquals(0xFFC8372B, ChiDianColors.ActionPrimary.toArgb().toLong() and 0xFFFFFFFF)
-        assertEquals(0xFFFFF4EA, ChiDianColors.ActionPrimarySoft.toArgb().toLong() and 0xFFFFFFFF)
-        assertEquals(0xFF176C49, ChiDianColors.LocationAccent.toArgb().toLong() and 0xFFFFFFFF)
-        assertEquals(0xFFF0FBF5, ChiDianColors.LocationAccentSoft.toArgb().toLong() and 0xFFFFFFFF)
-        assertEquals(0xFFFFF8F0, ChiDianColors.SurfaceSubtle.toArgb().toLong() and 0xFFFFFFFF)
-        assertEquals(0xFFF0DED2, ChiDianColors.BorderSubtle.toArgb().toLong() and 0xFFFFFFFF)
+        val palette = ChiDianPalettes.Default
+        assertEquals(0xFFC8372B, palette.actionPrimary.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFFFFF4EA, palette.actionPrimarySoft.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFF176C49, palette.locationAccent.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFFF0FBF5, palette.locationAccentSoft.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFFFFF8F0, palette.surfaceSubtle.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFFF0DED2, palette.borderSubtle.toArgb().toLong() and 0xFFFFFFFF)
     }
 
     @Test
@@ -33,10 +35,39 @@ class ChiDianPaletteTest {
 
     @Test
     fun aiAccentIsOnlyAnAccentNotTheMainPalette() {
-        val mainColors = listOf(ChiDianColors.ActionPrimary, ChiDianColors.ActionPrimarySoft, ChiDianColors.LocationAccent)
-        assertTrue(ChiDianColors.AiBlue !in mainColors)
-        assertTrue(ChiDianColors.AiCyan !in mainColors)
-        assertTrue(ChiDianColors.Sun !in mainColors)
+        val palette = ChiDianPalettes.Default
+        val mainColors = listOf(palette.actionPrimary, palette.actionPrimarySoft, palette.locationAccent)
+        assertTrue(palette.aiBlue !in mainColors)
+        assertTrue(palette.aiCyan !in mainColors)
+        assertTrue(palette.sun !in mainColors)
+    }
+
+    @Test
+    fun girlPinkPaletteMatchesApprovedThemeTokens() {
+        val palette = ChiDianPalettes.GirlPink
+        assertEquals(0xFFFFF7F3, palette.canvas.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFFFFFFFC, palette.surface.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFFFFF0ED, palette.surfaceWarm.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFFC93F62, palette.actionPrimary.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFFFFE5EB, palette.actionPrimarySoft.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFFB94666, palette.locationAccent.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFFF5C9D2, palette.borderSubtle.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFF3B2527, palette.ink.toArgb().toLong() and 0xFFFFFFFF)
+        assertEquals(0xFF795D60, palette.muted.toArgb().toLong() and 0xFFFFFFFF)
+    }
+
+    @Test
+    fun girlPinkPrimaryActionsKeepReadableWhiteText() {
+        assertTrue(contrastRatio(0xFFFFFFFF, 0xFFC93F62) > 4.5)
+        assertTrue(contrastRatio(0xFFFFFFFF, 0xFFB94666) > 4.5)
+    }
+
+    @Test
+    fun themeStorageIdsDecodeAndUnknownValuesFallBackToDefault() {
+        assertEquals(AppThemeStyle.Default, AppThemeStyle.fromStorageId(null))
+        assertEquals(AppThemeStyle.Default, AppThemeStyle.fromStorageId("legacy"))
+        assertEquals(AppThemeStyle.Default, AppThemeStyle.fromStorageId("default"))
+        assertEquals(AppThemeStyle.GirlPink, AppThemeStyle.fromStorageId("girl_pink"))
     }
 
     private fun contrastRatio(foregroundArgb: Long, backgroundArgb: Long): Double {

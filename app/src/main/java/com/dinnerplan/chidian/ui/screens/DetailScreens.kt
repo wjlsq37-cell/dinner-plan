@@ -56,14 +56,17 @@ import com.dinnerplan.chidian.Restaurant
 import com.dinnerplan.chidian.friendlyReason
 import com.dinnerplan.chidian.recipeMetaLine
 import com.dinnerplan.chidian.UserReasonContext
+import com.dinnerplan.chidian.ui.components.AppIcon
 import com.dinnerplan.chidian.ui.components.FoodCard
 import com.dinnerplan.chidian.ui.components.FoodChip
 import com.dinnerplan.chidian.ui.components.FoodTone
 import com.dinnerplan.chidian.ui.components.FoodInfoTile
 import com.dinnerplan.chidian.ui.components.FoodTopBar
 import com.dinnerplan.chidian.ui.components.StaggeredVisible
+import com.dinnerplan.chidian.ui.components.ThemedActionIcon
 import com.dinnerplan.chidian.ui.theme.ChiDianColors
 import com.dinnerplan.chidian.ui.theme.ChiDianGradients
+import com.dinnerplan.chidian.ui.theme.ChiDianThemeValues
 
 @Composable
 fun MealPlanDetailScreen(
@@ -84,7 +87,7 @@ fun MealPlanDetailScreen(
                     title = "组合菜单",
                     subtitle = "${plan.structure} · ${plan.cookTime} · ${plan.servings}",
                     onBack = onBack,
-                    actionIcon = if (isSaved) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    actionIcon = if (isSaved) AppIcon.Favorite else AppIcon.FavoriteBorder,
                     onAction = { onToggleSave(plan.id) }
                 )
             }
@@ -167,7 +170,7 @@ fun RecipeDetailScreen(
                     title = "菜谱详情",
                     subtitle = recipeMetaLine(recipe),
                     onBack = onBack,
-                    actionIcon = if (isSaved) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    actionIcon = if (isSaved) AppIcon.Favorite else AppIcon.FavoriteBorder,
                     onAction = { onToggleSave(recipe.id) }
                 )
             }
@@ -251,7 +254,7 @@ fun RestaurantDetailScreen(
                     title = "餐厅详情",
                     subtitle = "${restaurant.category} · ${restaurant.distance} · ${restaurant.open}",
                     onBack = onBack,
-                    actionIcon = if (isSaved) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    actionIcon = if (isSaved) AppIcon.Favorite else AppIcon.FavoriteBorder,
                     onAction = { onToggleSave(restaurant.id) }
                 )
             }
@@ -298,9 +301,15 @@ fun RestaurantDetailScreen(
                     onClick = onNavigate,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.ActionPrimary),
-                    shape = RoundedCornerShape(8.dp)
+                    shape = ChiDianThemeValues.buttonShape
                 ) {
-                    Icon(Icons.Filled.Navigation, contentDescription = null, modifier = Modifier.size(18.dp))
+                    ThemedActionIcon(
+                        icon = AppIcon.Navigation,
+                        contentDescription = null,
+                        decorated = false,
+                        iconSize = 18.dp,
+                        defaultTint = Color.White
+                    )
                     Spacer(Modifier.width(8.dp))
                     Text("导航去这里")
                 }
@@ -337,14 +346,14 @@ private fun DetailHero(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(158.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(ChiDianThemeValues.heroShape)
             )
         } else {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(118.dp)
-                    .background(gradient, RoundedCornerShape(8.dp))
+                    .background(gradient, ChiDianThemeValues.heroShape)
             ) {
                 Icon(
                     imageVector = Icons.Filled.Restaurant,
@@ -406,7 +415,7 @@ private fun DishDetailLine(dish: DishItem, onRecipe: (String) -> Unit) {
             .fillMaxWidth()
             .then(if (recipeId != null) Modifier.clickable { onRecipe(recipeId) } else Modifier),
         color = ChiDianColors.SurfaceSubtle,
-        shape = RoundedCornerShape(8.dp),
+        shape = ChiDianThemeValues.controlShape,
         border = BorderStroke(1.dp, ChiDianColors.BorderSubtle)
     ) {
         Row(
@@ -446,7 +455,7 @@ private fun DetailTagGrid(items: List<String>) {
                     Surface(
                         modifier = Modifier.weight(1f),
                         color = ChiDianColors.SurfaceSubtle,
-                        shape = RoundedCornerShape(8.dp),
+                        shape = ChiDianThemeValues.controlShape,
                         border = BorderStroke(1.dp, ChiDianColors.BorderSubtle)
                     ) {
                         Text(
@@ -491,7 +500,7 @@ private fun DetailStepList(steps: List<String>, stepImageUrls: List<String> = em
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(142.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(ChiDianThemeValues.controlShape)
                         )
                     }
                 }
@@ -525,9 +534,15 @@ private fun SaveButton(text: String, isSaved: Boolean, onClick: () -> Unit) {
             contentColor = if (isSaved) Color.White else ChiDianColors.Ink
         ),
         border = if (isSaved) null else BorderStroke(1.dp, ChiDianColors.BorderSubtle),
-        shape = RoundedCornerShape(8.dp)
+        shape = ChiDianThemeValues.buttonShape
     ) {
-        Icon(if (isSaved) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, contentDescription = null, modifier = Modifier.size(18.dp))
+        ThemedActionIcon(
+            icon = if (isSaved) AppIcon.Favorite else AppIcon.FavoriteBorder,
+            contentDescription = null,
+            decorated = false,
+            iconSize = 18.dp,
+            defaultTint = if (isSaved) Color.White else ChiDianColors.Ink
+        )
         Spacer(Modifier.width(8.dp))
         Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }

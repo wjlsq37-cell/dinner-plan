@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dinnerplan.chidian.ui.theme.ChiDianColors
+import com.dinnerplan.chidian.ui.theme.ChiDianThemeValues
 
 enum class FoodTone {
     Food,
@@ -94,7 +95,7 @@ fun FoodSegmentedButtons(
 ) {
     Surface(
         color = ChiDianColors.SurfaceSubtle,
-        shape = RoundedCornerShape(10.dp),
+        shape = ChiDianThemeValues.controlShape,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
@@ -118,7 +119,7 @@ fun FoodSearchPanel(
     note: String,
     value: String,
     onValueChange: (String) -> Unit,
-    buttonIcon: ImageVector,
+    buttonIcon: AppIcon,
     onSubmit: () -> Unit,
     chips: List<String> = emptyList(),
     onChipClick: (String) -> Unit = {}
@@ -147,7 +148,7 @@ fun FoodSearchPanel(
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
             minLines = 2,
-            shape = RoundedCornerShape(8.dp)
+            shape = ChiDianThemeValues.controlShape
         )
         if (chips.isNotEmpty()) {
             Row(
@@ -170,9 +171,15 @@ fun FoodSearchPanel(
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.ActionPrimary),
-            shape = RoundedCornerShape(8.dp)
+            shape = ChiDianThemeValues.buttonShape
         ) {
-            Icon(buttonIcon, contentDescription = null, modifier = Modifier.size(18.dp))
+            ThemedActionIcon(
+                icon = buttonIcon,
+                contentDescription = null,
+                decorated = false,
+                iconSize = 18.dp,
+                defaultTint = Color.White
+            )
             Spacer(Modifier.width(8.dp))
             Text("开始推荐")
         }
@@ -181,7 +188,7 @@ fun FoodSearchPanel(
 
 @Composable
 private fun SegmentButton(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(8.dp)
+    val shape = ChiDianThemeValues.controlShape
     Box(
         modifier = modifier
             .fillMaxHeight()

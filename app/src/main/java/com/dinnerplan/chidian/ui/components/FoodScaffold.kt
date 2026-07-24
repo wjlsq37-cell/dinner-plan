@@ -8,13 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -27,7 +20,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -35,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.dinnerplan.chidian.Screen
 import com.dinnerplan.chidian.ui.theme.ChiDianColors
 import com.dinnerplan.chidian.ui.theme.ChiDianGradients
+import com.dinnerplan.chidian.ui.theme.ChiDianThemeValues
 
 enum class FoodBottomTab {
     Home,
@@ -53,6 +46,9 @@ fun foodBottomTabFor(screen: Screen): FoodBottomTab {
         is Screen.RestaurantDetail -> FoodBottomTab.Nearby
         Screen.Saved -> FoodBottomTab.Saved
         Screen.Settings,
+        Screen.TastePreferences,
+        Screen.SearchSettings,
+        Screen.LauncherIconSettings,
         Screen.DeveloperSettings -> FoodBottomTab.Settings
     }
 }
@@ -93,7 +89,7 @@ fun FoodTopBar(
     subtitle: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    actionIcon: ImageVector? = null,
+    actionIcon: AppIcon? = null,
     onAction: (() -> Unit)? = null
 ) {
     Row(
@@ -102,7 +98,11 @@ fun FoodTopBar(
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = ChiDianColors.Ink)
+            ThemedActionIcon(
+                icon = AppIcon.Back,
+                contentDescription = "返回",
+                defaultTint = ChiDianColors.Ink
+            )
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(title, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = ChiDianColors.Ink)
@@ -116,7 +116,11 @@ fun FoodTopBar(
         }
         if (actionIcon != null && onAction != null) {
             IconButton(onClick = onAction) {
-                Icon(actionIcon, contentDescription = null, tint = ChiDianColors.Ink)
+                ThemedActionIcon(
+                    icon = actionIcon,
+                    contentDescription = null,
+                    defaultTint = ChiDianColors.Ink
+                )
             }
         }
     }
@@ -129,19 +133,23 @@ fun FoodScreenHeader(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     gradient: Brush = ChiDianGradients.AppetiteHero,
-    actionIcon: ImageVector? = null,
+    actionIcon: AppIcon? = null,
     onAction: (() -> Unit)? = null
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(gradient, RoundedCornerShape(8.dp))
+            .background(gradient, ChiDianThemeValues.heroShape)
             .padding(horizontal = 12.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = Color.White)
+            ThemedActionIcon(
+                icon = AppIcon.Back,
+                contentDescription = "返回",
+                defaultTint = Color.White
+            )
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(title, fontSize = 27.sp, fontWeight = FontWeight.Black, color = Color.White)
@@ -155,7 +163,11 @@ fun FoodScreenHeader(
         }
         if (actionIcon != null && onAction != null) {
             IconButton(onClick = onAction) {
-                Icon(actionIcon, contentDescription = null, tint = Color.White)
+                ThemedActionIcon(
+                    icon = actionIcon,
+                    contentDescription = null,
+                    defaultTint = Color.White
+                )
             }
         }
     }
@@ -175,25 +187,53 @@ fun FoodBottomNavigation(
         NavigationBarItem(
             selected = selectedTab == FoodBottomTab.Home,
             onClick = onHome,
-            icon = { Icon(Icons.Filled.Home, contentDescription = null) },
+            icon = {
+                ThemedActionIcon(
+                    AppIcon.Home,
+                    contentDescription = null,
+                    selected = selectedTab == FoodBottomTab.Home,
+                    decorated = ChiDianThemeValues.isGirlPink
+                )
+            },
             label = { Text("首页") }
         )
         NavigationBarItem(
             selected = selectedTab == FoodBottomTab.Nearby,
             onClick = onNearby,
-            icon = { Icon(Icons.Filled.Map, contentDescription = null) },
+            icon = {
+                ThemedActionIcon(
+                    AppIcon.Nearby,
+                    contentDescription = null,
+                    selected = selectedTab == FoodBottomTab.Nearby,
+                    decorated = ChiDianThemeValues.isGirlPink
+                )
+            },
             label = { Text("附近") }
         )
         NavigationBarItem(
             selected = selectedTab == FoodBottomTab.Saved,
             onClick = onSaved,
-            icon = { Icon(Icons.Filled.FavoriteBorder, contentDescription = null) },
+            icon = {
+                ThemedActionIcon(
+                    AppIcon.Saved,
+                    contentDescription = null,
+                    selected = selectedTab == FoodBottomTab.Saved,
+                    decorated = ChiDianThemeValues.isGirlPink
+                )
+            },
             label = { Text("收藏") }
         )
         NavigationBarItem(
             selected = selectedTab == FoodBottomTab.Settings,
             onClick = onSettings,
-            icon = { Icon(Icons.Filled.Tune, contentDescription = null) },
+            icon = {
+                ThemedActionIcon(
+                    AppIcon.Settings,
+                    contentDescription = null,
+                    selected = selectedTab == FoodBottomTab.Settings,
+                    decorated = ChiDianThemeValues.isGirlPink
+                )
+            },
             label = { Text("设置") }
         )
     }

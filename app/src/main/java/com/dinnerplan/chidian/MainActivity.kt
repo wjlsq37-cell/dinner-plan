@@ -1,9 +1,13 @@
 ﻿package com.dinnerplan.chidian
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.ViewTreeObserver
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -12,8 +16,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.AlertDialog
@@ -24,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -31,13 +38,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.lifecycle.lifecycleScope
 import com.dinnerplan.chidian.ui.components.FoodBottomNavigation
+import com.dinnerplan.chidian.ui.components.AppIcon
+import com.dinnerplan.chidian.ui.components.ThemedActionIcon
 import com.dinnerplan.chidian.ui.screens.CookRecommendScreen
 import com.dinnerplan.chidian.ui.screens.HomeScreen
 import com.dinnerplan.chidian.ui.screens.MealPlanDetailScreen
@@ -47,8 +61,13 @@ import com.dinnerplan.chidian.ui.screens.RestaurantDetailScreen
 import com.dinnerplan.chidian.ui.screens.SavedScreen
 import com.dinnerplan.chidian.ui.screens.SettingsScreen
 import com.dinnerplan.chidian.ui.screens.DeveloperSettingsScreen
+import com.dinnerplan.chidian.ui.screens.LauncherIconSettingsScreen
+import com.dinnerplan.chidian.ui.screens.SearchSettingsScreen
+import com.dinnerplan.chidian.ui.screens.TastePreferenceSettingsScreen
 import com.dinnerplan.chidian.ui.theme.ChiDianColors
 import com.dinnerplan.chidian.ui.theme.ChiDianTheme
+import com.dinnerplan.chidian.ui.theme.ChiDianThemeValues
+import com.dinnerplan.chidian.ui.theme.AppThemeStyle
 import com.dinnerplan.shared.CancelRecommendationRequest
 import com.dinnerplan.shared.CookSourceDto
 import com.dinnerplan.shared.DishItemDto
@@ -74,6 +93,54 @@ private val Context.chiDianDataStore by preferencesDataStore(name = "chidian_set
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (LaunchSplashSession.shouldShow()) {
+            showColdLaunchSplash()
+        } else {
+            showAppContent()
+        }
+    }
+
+    private fun showColdLaunchSplash() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        WindowCompat.getInsetsController(window, window.decorView)
+            .hide(WindowInsetsCompat.Type.statusBars())
+
+        val splashView = ImageView(this).apply {
+            setImageResource(R.drawable.launch_splash)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            setBackgroundColor(getColor(R.color.launch_splash_background))
+        }
+        setContentView(splashView)
+
+        splashView.viewTreeObserver.addOnDrawListener(object : ViewTreeObserver.OnDrawListener {
+            private var started = false
+
+            override fun onDraw() {
+                if (started) return
+                started = true
+                splashView.post {
+                    if (splashView.viewTreeObserver.isAlive) {
+                        splashView.viewTreeObserver.removeOnDrawListener(this)
+                    }
+                }
+                lifecycleScope.launch {
+                    val remaining = LaunchSplashSession.remainingAfterFirstFrame(
+                        SystemClock.elapsedRealtime()
+                    )
+                    if (remaining > 0L) delay(remaining)
+                    LaunchSplashSession.complete()
+                    WindowCompat.getInsetsController(window, window.decorView)
+                        .show(WindowInsetsCompat.Type.statusBars())
+                    WindowCompat.setDecorFitsSystemWindows(window, true)
+                    showAppContent()
+                }
+            }
+        })
+    }
+
+    private fun showAppContent() {
         setContent {
             ChiDianApp()
         }
@@ -84,13 +151,28 @@ private val PersistenceJson = Json {
     ignoreUnknownKeys = true
 }
 
-private const val DEFAULT_BACKEND_BASE_URL = "https://dinner-plan.vercel.app"
+internal const val DEFAULT_BACKEND_BASE_URL = "https://dinner-plan-pwa.vercel.app/api/backend"
+private val LEGACY_BACKEND_BASE_URLS = setOf(
+    "https://dinner-plan.vercel.app",
+    "https://dinner-plan-pwa.vercel.app"
+)
+
+internal fun normalizeBackendBaseUrl(value: String?): String {
+    val normalized = value?.trim()?.trimEnd('/').orEmpty()
+    return if (normalized.isBlank() || normalized in LEGACY_BACKEND_BASE_URLS) {
+        DEFAULT_BACKEND_BASE_URL
+    } else {
+        normalized
+    }
+}
 private const val FIXED_RESTAURANT_RESULT_LIMIT = 50
 private const val DECISION_COOK_QUERY = ""
 private const val DECISION_RESTAURANT_QUERY = ""
 private const val HOME_TODAY_INSPIRATION_ITEM_INDEX = 3
 
 private object SettingsKeys {
+    val ThemeStyle = stringPreferencesKey("theme_style")
+    val LauncherIconStyle = stringPreferencesKey("launcher_icon_style")
     val BackendBaseUrl = stringPreferencesKey("backend_base_url")
     val DeveloperEnabled = stringPreferencesKey("developer_enabled")
     val DeveloperAiProvider = stringPreferencesKey("developer_ai_provider")
@@ -121,7 +203,7 @@ private object SettingsKeys {
     val TasteOptions = stringPreferencesKey("taste_options")
     val AvoidOptions = stringPreferencesKey("avoid_options")
     val DefaultDistance = stringPreferencesKey("default_distance")
-    val PreferQuickRecipes = stringPreferencesKey("prefer_quick_recipes")
+    val LegacyPreferQuickRecipes = stringPreferencesKey("prefer_quick_recipes")
     val PreferOpenRestaurants = stringPreferencesKey("prefer_open_restaurants")
     val LocationText = stringPreferencesKey("location_text")
     val RestaurantCache = stringPreferencesKey("restaurant_cache")
@@ -142,6 +224,9 @@ sealed interface Screen {
     data class RestaurantDetail(val id: String) : Screen
     data object Saved : Screen
     data object Settings : Screen
+    data object TastePreferences : Screen
+    data object SearchSettings : Screen
+    data object LauncherIconSettings : Screen
     data object DeveloperSettings : Screen
 }
 
@@ -305,7 +390,6 @@ data class UserPreference(
     val tastes: List<String> = listOf("微辣", "清淡"),
     val avoids: List<String> = listOf("香菜", "海鲜"),
     val defaultDistance: String = "5km",
-    val preferQuickRecipes: Boolean = true,
     val preferOpenRestaurants: Boolean = true,
     val restaurantResultLimit: Int = FIXED_RESTAURANT_RESULT_LIMIT
 )
@@ -325,6 +409,8 @@ data class DialogState(
 )
 
 data class AppUiState internal constructor(
+    val themeStyle: AppThemeStyle = AppThemeStyle.Default,
+    val launcherIconStyle: LauncherIconStyle = LauncherIconStyle.Classic,
     val cookQuery: String = "",
     val restaurantQuery: String = "",
     val backendBaseUrl: String = DEFAULT_BACKEND_BASE_URL,
@@ -874,7 +960,7 @@ private fun UserPreference.toDto(): UserPreferenceDto {
         tastes = tastes,
         avoids = avoids,
         defaultDistanceKm = defaultDistance.filter { it.isDigit() }.toIntOrNull() ?: 5,
-        preferQuickRecipes = preferQuickRecipes,
+        preferQuickRecipes = ANDROID_PREFER_QUICK_RECIPES,
         preferOpenRestaurants = preferOpenRestaurants,
         restaurantResultLimit = FIXED_RESTAURANT_RESULT_LIMIT
     )
@@ -1073,6 +1159,8 @@ private suspend fun loadPersistedState(context: Context, current: AppUiState): A
         restaurantIds = savedRestaurantIds
     )
     return current.copy(
+        themeStyle = AppThemeStyle.fromStorageId(preferences[SettingsKeys.ThemeStyle]),
+        launcherIconStyle = LauncherIconStyle.fromStorageId(preferences[SettingsKeys.LauncherIconStyle]),
         cookQuery = preferences[SettingsKeys.LastCookQuery]?.takeIf { hasLastCookResult } ?: current.cookQuery,
         cookSourceMode = preferences[SettingsKeys.LastCookSourceMode]
             ?.takeIf { hasLastCookResult }
@@ -1082,7 +1170,7 @@ private suspend fun loadPersistedState(context: Context, current: AppUiState): A
             ?.takeIf { hasLastCookResult }
             ?.let(::decodeRecommendMode)
             ?: current.recommendMode,
-        backendBaseUrl = preferences[SettingsKeys.BackendBaseUrl] ?: current.backendBaseUrl,
+        backendBaseUrl = normalizeBackendBaseUrl(preferences[SettingsKeys.BackendBaseUrl]),
         developerSettings = current.developerSettings.copy(
             enabled = preferences[SettingsKeys.DeveloperEnabled]?.toBooleanStrictOrNull()
                 ?: current.developerSettings.enabled,
@@ -1122,8 +1210,6 @@ private suspend fun loadPersistedState(context: Context, current: AppUiState): A
             tastes = preferences[SettingsKeys.Tastes]?.let(::decodeList) ?: current.preferences.tastes,
             avoids = preferences[SettingsKeys.Avoids]?.let(::decodeList) ?: current.preferences.avoids,
             defaultDistance = preferences[SettingsKeys.DefaultDistance] ?: current.preferences.defaultDistance,
-            preferQuickRecipes = preferences[SettingsKeys.PreferQuickRecipes]?.toBooleanStrictOrNull()
-                ?: current.preferences.preferQuickRecipes,
             preferOpenRestaurants = preferences[SettingsKeys.PreferOpenRestaurants]?.toBooleanStrictOrNull()
                 ?: current.preferences.preferOpenRestaurants,
             restaurantResultLimit = FIXED_RESTAURANT_RESULT_LIMIT
@@ -1142,6 +1228,8 @@ private suspend fun loadPersistedState(context: Context, current: AppUiState): A
 
 private suspend fun persistUiState(context: Context, state: AppUiState) {
     context.chiDianDataStore.edit { preferences ->
+        preferences[SettingsKeys.ThemeStyle] = state.themeStyle.storageId
+        preferences[SettingsKeys.LauncherIconStyle] = state.launcherIconStyle.storageId
         preferences[SettingsKeys.BackendBaseUrl] = state.backendBaseUrl
         preferences[SettingsKeys.DeveloperEnabled] = state.developerSettings.enabled.toString()
         preferences[SettingsKeys.DeveloperAiProvider] = state.developerSettings.selectedAiProvider.id
@@ -1169,7 +1257,7 @@ private suspend fun persistUiState(context: Context, state: AppUiState) {
         preferences[SettingsKeys.TasteOptions] = encodeList(state.tasteOptions)
         preferences[SettingsKeys.AvoidOptions] = encodeList(state.avoidOptions)
         preferences[SettingsKeys.DefaultDistance] = state.preferences.defaultDistance
-        preferences[SettingsKeys.PreferQuickRecipes] = state.preferences.preferQuickRecipes.toString()
+        preferences.remove(SettingsKeys.LegacyPreferQuickRecipes)
         preferences[SettingsKeys.PreferOpenRestaurants] = state.preferences.preferOpenRestaurants.toString()
         preferences[SettingsKeys.LocationText] = state.locationText
         state.currentLatitude?.let { preferences[SettingsKeys.CurrentLatitude] = it.toString() }
@@ -1538,6 +1626,7 @@ object MockData {
 @Composable
 private fun ChiDianApp() {
     val context = LocalContext.current
+    val launcherIconManager = remember { LauncherIconManager(context) }
     val backendApiClient = remember { BackendApiClient() }
     val backendAiRepository = remember { BackendAiRecommendationRepository(backendApiClient) }
     val directAiApiClient = remember { DirectAiApiClient() }
@@ -1569,11 +1658,14 @@ private fun ChiDianApp() {
     val cookListState = rememberLazyListState()
     val nearbyListState = rememberLazyListState()
     val savedListState = rememberLazyListState()
+    val settingsListState = rememberLazyListState()
     var settingsLoaded by remember { mutableStateOf(false) }
     var cookRecommendationJob by remember { mutableStateOf<Job?>(null) }
 
     LaunchedEffect(Unit) {
-        uiState = loadPersistedState(context, uiState)
+        val loadedState = loadPersistedState(context, uiState)
+        uiState = loadedState
+        launcherIconManager.apply(loadedState.launcherIconStyle)
         settingsLoaded = true
     }
 
@@ -1590,6 +1682,8 @@ private fun ChiDianApp() {
 
     LaunchedEffect(
         settingsLoaded,
+        uiState.themeStyle,
+        uiState.launcherIconStyle,
         uiState.backendBaseUrl,
         uiState.developerSettings,
         uiState.savedMealIds,
@@ -1643,6 +1737,16 @@ private fun ChiDianApp() {
 
     fun toast(message: String) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    fun selectLauncherIcon(style: LauncherIconStyle) {
+        if (style == uiState.launcherIconStyle) return
+        if (launcherIconManager.apply(style)) {
+            uiState = uiState.copy(launcherIconStyle = style)
+            toast("已切换为${style.displayName}")
+        } else {
+            toast("图标切换失败，请稍后重试")
+        }
     }
 
     fun addHistory(item: SavedItem) {
@@ -2075,26 +2179,29 @@ private fun ChiDianApp() {
         goBack()
     }
 
-    ChiDianTheme {
+    ChiDianTheme(style = uiState.themeStyle) {
+        ThemeSystemBars()
         Scaffold(
-            containerColor = ChiDianColors.Canvas,
-            bottomBar = {
-                FoodBottomNavigation(
-                    selected = currentScreen,
-                    onHome = { topLevel(Screen.Home) },
-                    onNearby = { topLevel(Screen.NearbyRestaurant) },
-                    onSaved = { topLevel(Screen.Saved) },
-                    onSettings = { topLevel(Screen.Settings) }
-                )
-            }
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(ChiDianColors.Canvas)
-                    .padding(innerPadding)
-            ) {
-                when (val screen = currentScreen) {
+                containerColor = ChiDianColors.Canvas,
+                bottomBar = {
+                    if (currentScreen.showsBottomNavigation()) {
+                        FoodBottomNavigation(
+                            selected = currentScreen,
+                            onHome = { topLevel(Screen.Home) },
+                            onNearby = { topLevel(Screen.NearbyRestaurant) },
+                            onSaved = { topLevel(Screen.Saved) },
+                            onSettings = { topLevel(Screen.Settings) }
+                        )
+                    }
+                }
+            ) { innerPadding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(ChiDianColors.Canvas)
+                        .padding(innerPadding)
+                ) {
+                    when (val screen = currentScreen) {
                     Screen.Home -> HomeScreen(
                         listState = homeListState,
                         onCookSearch = {
@@ -2222,45 +2329,110 @@ private fun ChiDianApp() {
                         }
                     )
 
-                    Screen.Settings -> SettingsScreen(
-                        state = uiState,
-                        onStateChange = { uiState = it },
-                        onBack = { topLevel(Screen.Home) },
-                        onSave = { toast("偏好已保存") },
-                        onDeveloperSettings = { navigate(Screen.DeveloperSettings) }
-                    )
+                        Screen.Settings -> SettingsScreen(
+                            state = uiState,
+                            listState = settingsListState,
+                            onStateChange = { uiState = it },
+                            onBack = { topLevel(Screen.Home) },
+                            onSave = { toast("偏好已保存") },
+                            onDeveloperSettings = { navigate(Screen.DeveloperSettings) },
+                            onTastePreferences = { navigate(Screen.TastePreferences) },
+                            onSearchSettings = { navigate(Screen.SearchSettings) },
+                            onLauncherIconSettings = { navigate(Screen.LauncherIconSettings) }
+                        )
 
-                    Screen.DeveloperSettings -> DeveloperSettingsScreen(
-                        backendBaseUrl = uiState.backendBaseUrl,
-                        settings = uiState.developerSettings,
-                        onBackendBaseUrlChange = { uiState = uiState.copy(backendBaseUrl = it) },
-                        onSettingsChange = { uiState = uiState.copy(developerSettings = it) },
-                        onBack = ::goBack,
-                        onSave = { toast("开发者设置已保存") }
-                    )
+                        Screen.TastePreferences -> TastePreferenceSettingsScreen(
+                            state = uiState,
+                            onStateChange = { uiState = it },
+                            onBack = ::goBack
+                        )
+
+                        Screen.SearchSettings -> SearchSettingsScreen(
+                            state = uiState,
+                            onStateChange = { uiState = it },
+                            onBack = ::goBack
+                        )
+
+                        Screen.LauncherIconSettings -> LauncherIconSettingsScreen(
+                            selected = uiState.launcherIconStyle,
+                            onSelect = ::selectLauncherIcon,
+                            onBack = ::goBack
+                        )
+
+                        Screen.DeveloperSettings -> DeveloperSettingsScreen(
+                            backendBaseUrl = uiState.backendBaseUrl,
+                            settings = uiState.developerSettings,
+                            onBackendBaseUrlChange = { uiState = uiState.copy(backendBaseUrl = it) },
+                            onSettingsChange = { uiState = uiState.copy(developerSettings = it) },
+                            onBack = ::goBack,
+                            onSave = { toast("开发者设置已保存") }
+                        )
+                    }
                 }
             }
-        }
 
         uiState.dialog?.let { dialog ->
             AlertDialog(
-                onDismissRequest = { uiState = uiState.copy(dialog = null) },
-                title = { Text(dialog.title, fontWeight = FontWeight.Bold) },
-                text = { Text(dialog.message, color = ChiDianColors.Muted) },
-                confirmButton = {
-                    Button(
-                        onClick = { uiState = uiState.copy(dialog = null) },
-                        colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.ActionPrimary)
-                    ) {
-                        Text(dialog.action)
+                    onDismissRequest = { uiState = uiState.copy(dialog = null) },
+                    title = { Text(dialog.title, fontWeight = FontWeight.Bold) },
+                    text = { Text(dialog.message, color = ChiDianColors.Muted) },
+                    confirmButton = {
+                        Button(
+                            onClick = { uiState = uiState.copy(dialog = null) },
+                            colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.ActionPrimary),
+                            shape = ChiDianThemeValues.buttonShape
+                        ) {
+                            if (ChiDianThemeValues.isGirlPink) {
+                                ThemedActionIcon(
+                                    icon = AppIcon.Check,
+                                    contentDescription = null,
+                                    decorated = false,
+                                    defaultTint = androidx.compose.ui.graphics.Color.White
+                                )
+                                Spacer(Modifier.width(6.dp))
+                            }
+                            Text(dialog.action)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { uiState = uiState.copy(dialog = null) }) {
+                            if (ChiDianThemeValues.isGirlPink) {
+                                ThemedActionIcon(
+                                    icon = AppIcon.Close,
+                                    contentDescription = null,
+                                    decorated = false,
+                                    defaultTint = ChiDianColors.ActionPrimary
+                                )
+                                Spacer(Modifier.width(4.dp))
+                            }
+                            Text("关闭")
+                        }
                     }
-                },
-                dismissButton = {
-                    TextButton(onClick = { uiState = uiState.copy(dialog = null) }) {
-                        Text("关闭")
-                    }
-                }
             )
+        }
+    }
+}
+
+private fun Screen.showsBottomNavigation(): Boolean {
+    return when (this) {
+        Screen.TastePreferences,
+        Screen.SearchSettings,
+        Screen.LauncherIconSettings -> false
+        else -> true
+    }
+}
+
+@Composable
+private fun ThemeSystemBars() {
+    val context = LocalContext.current
+    val barColor = ChiDianColors.Canvas.toArgb()
+    SideEffect {
+        val activity = context as? Activity ?: return@SideEffect
+        activity.window.statusBarColor = barColor
+        activity.window.navigationBarColor = barColor
+        WindowCompat.getInsetsController(activity.window, activity.window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
         }
     }
 }

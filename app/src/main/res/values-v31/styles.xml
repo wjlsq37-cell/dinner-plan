@@ -6,5 +6,9 @@
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:navigationBarColor">@color/launch_splash_background</item>
         <item name="android:statusBarColor">@color/launch_splash_background</item>
+        <item name="android:windowSplashScreenBackground">@color/launch_splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_screen_empty</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
+        <item name="android:windowSplashScreenAnimationDuration">0</item>
     </style>
 </resources>

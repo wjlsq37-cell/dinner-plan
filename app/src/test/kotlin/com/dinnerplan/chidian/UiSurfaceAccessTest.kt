@@ -353,7 +353,7 @@ class UiSurfaceAccessTest {
         val settingsScreen = readProjectFile("app/src/main/java/com/dinnerplan/chidian/ui/screens/SavedSettingsScreens.kt")
         val backendClient = readProjectFile("app/src/main/java/com/dinnerplan/chidian/BackendApiClient.kt")
 
-        assertTrue("DEFAULT_BACKEND_BASE_URL = \"https://dinner-plan.vercel.app\"" in mainActivity)
+        assertTrue("DEFAULT_BACKEND_BASE_URL = \"https://dinner-plan-pwa.vercel.app/api/backend\"" in mainActivity)
         assertTrue("val backendBaseUrl: String = DEFAULT_BACKEND_BASE_URL" in mainActivity)
         assertTrue("if (snapshot.developerSettings.enabled) directCookRepository else backendAiRepository" in mainActivity)
         assertTrue("if (snapshot.developerSettings.enabled) directRestaurantRepository else backendRestaurantRepository" in mainActivity)

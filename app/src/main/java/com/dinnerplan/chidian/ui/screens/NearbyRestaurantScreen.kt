@@ -71,11 +71,14 @@ import com.dinnerplan.chidian.sortRestaurants
 import com.dinnerplan.chidian.UserMessageContext
 import com.dinnerplan.chidian.UserReasonContext
 import com.dinnerplan.chidian.ui.components.EmptyFoodState
+import com.dinnerplan.chidian.ui.components.AppIcon
 import com.dinnerplan.chidian.ui.components.ShimmerLine
 import com.dinnerplan.chidian.ui.components.StaggeredVisible
 import com.dinnerplan.chidian.ui.components.StatusCard
+import com.dinnerplan.chidian.ui.components.ThemedActionIcon
 import com.dinnerplan.chidian.ui.components.pressScale
 import com.dinnerplan.chidian.ui.theme.ChiDianColors
+import com.dinnerplan.chidian.ui.theme.ChiDianThemeValues
 import kotlinx.coroutines.launch
 
 @Composable
@@ -210,8 +213,8 @@ private fun NearbyHeroPanel(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color.White,
-        shape = RoundedCornerShape(8.dp),
+        color = ChiDianColors.Surface,
+        shape = ChiDianThemeValues.cardShape,
         border = BorderStroke(1.dp, ChiDianColors.BorderSubtle),
         shadowElevation = 0.dp
     ) {
@@ -261,13 +264,27 @@ private fun NearbyHeroPanel(
                                 overflow = TextOverflow.Ellipsis
                             )
                             TextButton(onClick = { isEditingLocation = true }, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
+                                if (ChiDianThemeValues.isGirlPink) {
+                                    ThemedActionIcon(
+                                        icon = AppIcon.Place,
+                                        contentDescription = null,
+                                        decorated = false,
+                                        iconSize = 15.dp,
+                                        defaultTint = ChiDianColors.LocationAccent
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                }
                                 Text("更改", color = ChiDianColors.LocationAccent, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
                 IconButton(onClick = onLocateIssue) {
-                    Icon(Icons.Filled.MyLocation, contentDescription = "定位", tint = ChiDianColors.LocationAccent)
+                    ThemedActionIcon(
+                        icon = AppIcon.MyLocation,
+                        contentDescription = "定位",
+                        defaultTint = ChiDianColors.LocationAccent
+                    )
                 }
             }
 
@@ -296,8 +313,8 @@ private fun NearbySearchSurface(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color.White,
-        shape = RoundedCornerShape(8.dp),
+        color = ChiDianColors.Surface,
+        shape = ChiDianThemeValues.cardShape,
         border = BorderStroke(1.dp, ChiDianColors.BorderSubtle)
     ) {
         Row(
@@ -336,15 +353,31 @@ private fun NearbySearchSurface(
             )
             if (query.isNotBlank()) {
                 IconButton(onClick = { onQueryChange("") }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Close, contentDescription = "清空", tint = ChiDianColors.Muted, modifier = Modifier.size(18.dp))
+                    ThemedActionIcon(
+                        icon = AppIcon.Close,
+                        contentDescription = "清空",
+                        decorated = false,
+                        iconSize = 18.dp,
+                        defaultTint = ChiDianColors.Muted
+                    )
                 }
             }
             Button(
                 onClick = submitSearch,
                 colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.ActionPrimary, contentColor = Color.White),
-                shape = RoundedCornerShape(8.dp),
+                shape = ChiDianThemeValues.buttonShape,
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 9.dp)
             ) {
+                if (ChiDianThemeValues.isGirlPink) {
+                    ThemedActionIcon(
+                        icon = AppIcon.Search,
+                        contentDescription = null,
+                        decorated = false,
+                        iconSize = 16.dp,
+                        defaultTint = Color.White
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
                 Text("搜索", fontWeight = FontWeight.Bold)
             }
         }
@@ -362,7 +395,7 @@ private fun ManualLocationField(
     Surface(
         modifier = modifier,
         color = ChiDianColors.LocationAccentSoft,
-        shape = RoundedCornerShape(8.dp),
+        shape = ChiDianThemeValues.controlShape,
         border = BorderStroke(1.dp, ChiDianColors.LocationAccent.copy(alpha = 0.20f))
     ) {
         Row(
@@ -393,10 +426,26 @@ private fun ManualLocationField(
                 }
             )
             TextButton(onClick = onSubmit, contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)) {
+                if (ChiDianThemeValues.isGirlPink) {
+                    ThemedActionIcon(
+                        icon = AppIcon.Check,
+                        contentDescription = null,
+                        decorated = false,
+                        iconSize = 15.dp,
+                        defaultTint = ChiDianColors.LocationAccent
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
                 Text("确定", color = ChiDianColors.LocationAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             }
             IconButton(onClick = onCancel, modifier = Modifier.size(28.dp)) {
-                Icon(Icons.Filled.Close, contentDescription = "取消", tint = ChiDianColors.Muted, modifier = Modifier.size(16.dp))
+                ThemedActionIcon(
+                    icon = AppIcon.Close,
+                    contentDescription = "取消",
+                    decorated = false,
+                    iconSize = 16.dp,
+                    defaultTint = ChiDianColors.Muted
+                )
             }
         }
     }
@@ -406,8 +455,8 @@ private fun ManualLocationField(
 private fun NearbyLoadingCard(developerEnabled: Boolean) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = Color.White,
-        shape = RoundedCornerShape(8.dp),
+        color = ChiDianColors.Surface,
+        shape = ChiDianThemeValues.cardShape,
         border = BorderStroke(1.dp, ChiDianColors.BorderSubtle)
     ) {
         Column(
@@ -461,7 +510,7 @@ private fun NearbySortRow(selected: RestaurantSortMode, onSelect: (RestaurantSor
                     .weight(1f)
                     .height(42.dp)
                     .clickable { onSelect(mode) },
-                color = if (active) ChiDianColors.ActionPrimary else Color.White,
+                color = if (active) ChiDianColors.ActionPrimary else ChiDianColors.Surface,
                 contentColor = if (active) Color.White else ChiDianColors.Ink,
                 shape = RoundedCornerShape(999.dp),
                 border = if (active) null else BorderStroke(1.dp, ChiDianColors.BorderSubtle),
@@ -474,14 +523,16 @@ private fun NearbySortRow(selected: RestaurantSortMode, onSelect: (RestaurantSor
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    Icon(
-                        imageVector = when (mode) {
-                            RestaurantSortMode.Relevance -> Icons.Filled.Favorite
-                            RestaurantSortMode.Distance -> Icons.Filled.Place
-                            RestaurantSortMode.Rating -> Icons.Filled.Star
+                    ThemedActionIcon(
+                        icon = when (mode) {
+                            RestaurantSortMode.Relevance -> AppIcon.Favorite
+                            RestaurantSortMode.Distance -> AppIcon.Place
+                            RestaurantSortMode.Rating -> AppIcon.Star
                         },
                         contentDescription = null,
-                        modifier = Modifier.size(17.dp)
+                        decorated = false,
+                        iconSize = 17.dp,
+                        defaultTint = if (active) Color.White else ChiDianColors.Ink
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(sortModeLabel(mode), fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -496,7 +547,7 @@ private fun NearbyNoticeCard() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = ChiDianColors.LocationAccentSoft,
-        shape = RoundedCornerShape(8.dp),
+        shape = ChiDianThemeValues.cardShape,
         border = BorderStroke(1.dp, ChiDianColors.BorderSubtle)
     ) {
         Row(
@@ -527,8 +578,8 @@ private fun NearbyRestaurantCard(
         modifier = Modifier
             .fillMaxWidth()
             .pressScale(onClick),
-        color = Color.White,
-        shape = RoundedCornerShape(8.dp),
+        color = ChiDianColors.Surface,
+        shape = ChiDianThemeValues.cardShape,
         border = BorderStroke(1.dp, ChiDianColors.BorderSubtle),
         shadowElevation = 0.dp
     ) {
@@ -569,7 +620,7 @@ private fun NearbyRestaurantCard(
 
 @Composable
 private fun NearbyRestaurantImage(restaurant: Restaurant) {
-    val shape = RoundedCornerShape(8.dp)
+    val shape = ChiDianThemeValues.controlShape
     Box(
         modifier = Modifier
             .size(width = 100.dp, height = 92.dp)
@@ -686,7 +737,13 @@ private fun NearbyRestaurantActions(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Filled.Info, contentDescription = null, tint = ChiDianColors.ActionPrimary, modifier = Modifier.size(16.dp))
+                ThemedActionIcon(
+                    icon = AppIcon.Info,
+                    contentDescription = null,
+                    decorated = false,
+                    iconSize = 16.dp,
+                    defaultTint = ChiDianColors.ActionPrimary
+                )
                 Spacer(Modifier.width(6.dp))
                 Text("查看详情", color = ChiDianColors.ActionPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
@@ -696,7 +753,7 @@ private fun NearbyRestaurantActions(
                 .weight(1f)
                 .height(38.dp)
                 .clickable(onClick = onSave),
-            color = if (isSaved) ChiDianColors.ActionPrimarySoft else Color.White,
+            color = if (isSaved) ChiDianColors.ActionPrimarySoft else ChiDianColors.Surface,
             shape = RoundedCornerShape(999.dp),
             border = BorderStroke(1.dp, if (isSaved) ChiDianColors.ActionPrimary.copy(alpha = 0.24f) else ChiDianColors.BorderSubtle)
         ) {
@@ -704,11 +761,12 @@ private fun NearbyRestaurantActions(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = if (isSaved) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                ThemedActionIcon(
+                    icon = if (isSaved) AppIcon.Favorite else AppIcon.FavoriteBorder,
                     contentDescription = null,
-                    tint = if (isSaved) ChiDianColors.ActionPrimary else ChiDianColors.Ink,
-                    modifier = Modifier.size(16.dp)
+                    decorated = false,
+                    iconSize = 16.dp,
+                    defaultTint = if (isSaved) ChiDianColors.ActionPrimary else ChiDianColors.Ink
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(

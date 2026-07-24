@@ -1,12 +1,14 @@
 package com.dinnerplan.chidian.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,12 +24,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dinnerplan.chidian.R
 import com.dinnerplan.chidian.ui.theme.ChiDianColors
 import com.dinnerplan.chidian.ui.theme.ChiDianGradients
+import com.dinnerplan.chidian.ui.theme.ChiDianThemeValues
 
 @Composable
 fun FoodCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
@@ -37,7 +43,7 @@ fun FoodCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() 
         tonalElevation = 0.dp,
         shadowElevation = 1.dp,
         border = BorderStroke(1.dp, ChiDianColors.BorderSubtle),
-        shape = RoundedCornerShape(8.dp)
+        shape = ChiDianThemeValues.cardShape
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -58,7 +64,7 @@ fun AppetiteHeroCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(gradient, RoundedCornerShape(8.dp))
+            .background(gradient, ChiDianThemeValues.heroShape)
             .padding(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -110,8 +116,18 @@ fun StatusCard(
                 onClick = onAction,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.ActionPrimary),
-                shape = RoundedCornerShape(8.dp)
+                shape = ChiDianThemeValues.buttonShape
             ) {
+                if (ChiDianThemeValues.isGirlPink) {
+                    ThemedActionIcon(
+                        icon = AppIcon.Refresh,
+                        contentDescription = null,
+                        decorated = false,
+                        iconSize = 16.dp,
+                        defaultTint = Color.White
+                    )
+                    Spacer(Modifier.size(6.dp))
+                }
                 Text(actionText)
             }
         }
@@ -125,17 +141,29 @@ fun EmptyFoodState(
     message: String,
     actionText: String,
     onAction: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showGirlPinkIllustration: Boolean = true
 ) {
     FoodCard(modifier = modifier) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = ChiDianColors.ActionPrimary,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .size(28.dp)
-        )
+        if (ChiDianThemeValues.isGirlPink && showGirlPinkIllustration) {
+            Image(
+                painter = painterResource(R.drawable.girl_pink_bear_bowl),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .size(112.dp),
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = ChiDianColors.ActionPrimary,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .size(28.dp)
+            )
+        }
         Text(
             text = title,
             modifier = Modifier.align(Alignment.CenterHorizontally),
@@ -155,8 +183,18 @@ fun EmptyFoodState(
             onClick = onAction,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = ChiDianColors.ActionPrimary),
-            shape = RoundedCornerShape(8.dp)
+            shape = ChiDianThemeValues.buttonShape
         ) {
+            if (ChiDianThemeValues.isGirlPink) {
+                ThemedActionIcon(
+                    icon = AppIcon.Home,
+                    contentDescription = null,
+                    decorated = false,
+                    iconSize = 16.dp,
+                    defaultTint = Color.White
+                )
+                Spacer(Modifier.size(6.dp))
+            }
             Text(actionText)
         }
     }
@@ -164,7 +202,7 @@ fun EmptyFoodState(
 
 @Composable
 fun FoodInfoTile(label: String, value: String, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, color = ChiDianColors.SurfaceSubtle, shape = RoundedCornerShape(8.dp)) {
+    Surface(modifier = modifier, color = ChiDianColors.SurfaceSubtle, shape = ChiDianThemeValues.controlShape) {
         Column(Modifier.padding(10.dp)) {
             Text(label, color = ChiDianColors.Muted, fontSize = 11.sp)
             Text(value, color = ChiDianColors.Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
