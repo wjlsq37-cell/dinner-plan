@@ -1,12 +1,45 @@
 import type { CookRecommendationResponse, DeveloperSettings, DishItem, MealPlan, Recipe, RecommendationRequest, Restaurant, RestaurantRecommendationResponse, ReverseGeocodeRequest, ReverseGeocodeResponse, ServiceStatus } from "../types";
 import { ApiError } from "./api-error";
 
+const BROAD_RECIPE_SEARCH_TERMS = ["家常菜", "鸡蛋", "豆腐", "鸡肉", "猪肉", "牛肉", "鱼", "青菜", "土豆", "茄子", "汤", "面", "饭"];
+const BROAD_RESTAURANT_SEARCH_TERMS = ["餐厅", "中餐", "小吃", "快餐", "面馆", "粉面", "火锅", "烧烤", "日料", "西餐", "甜品", "咖啡"];
+
+interface RestaurantKeywordPlan {
+  keywords: string[];
+  mustMatch: string[];
+  preferMatch: string[];
+  negativeMatch: string[];
+}
+
+interface RestaurantCandidate {
+  id: string;
+  name: string;
+  type: string;
+  address: string;
+  distance: number;
+  rating: string;
+  cost: string;
+  businessArea: string;
+  tags: string[];
+  description: string;
+  coverUrl: string;
+  latitude: number | null;
+  longitude: number | null;
+  phone: string;
+}
+
 function isRecord(value: unknown): value is Record<string, any> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function stripCodeFence(value: string): string {
   return value.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+}
+
+function stringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
+  if (typeof value === "string") return value.split(/[,，、\n]/).map((item) => item.trim()).filter(Boolean);
+  return [];
 }
 
 function safeExternalUrl(value: string, allowedHosts?: string[]): URL {
@@ -91,19 +124,38 @@ function aiEndpoint(settings: DeveloperSettings): URL {
   return base;
 }
 
-async function aiCook(settings: DeveloperSettings, payload: RecommendationRequest, signal?: AbortSignal): Promise<CookRecommendationResponse> {
+async function requestAiJson(settings: DeveloperSettings, system: string, user: string, temperature: number, signal?: AbortSignal): Promise<any> {
   if (!settings.aiApiKey || !settings.aiModel) throw new ApiError("config", "请填写 AI API Key 和模型名称。");
   const result = await externalJson(aiEndpoint(settings), {
     method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${settings.aiApiKey}` },
-    body: JSON.stringify({ model: settings.aiModel, temperature: 0.6, response_format: { type: "json_object" }, messages: [
-      { role: "system", content: "你是菜谱推荐助手。只返回 JSON 对象。单菜模式返回 summary 和 recipes 数组；组合菜单模式返回 summary 和 mealPlans 数组。recipes 每项包含 name,cuisine,taste,tags,difficulty,cookTime,servings,reason,ingredients,steps,tips；mealPlans 每项包含 title,structure,cookTime,servings,tags,reason,dishes,shoppingList,timeline。至少返回一条可展示内容。" },
-      { role: "user", content: `需求：${payload.query || "请随机推荐"}\n模式：${payload.mode}\n偏好：${JSON.stringify(payload.preferences || {})}` }
+    body: JSON.stringify({ model: settings.aiModel, temperature, response_format: { type: "json_object" }, messages: [
+      { role: "system", content: system },
+      { role: "user", content: user }
     ] })
   }, settings, signal);
   const content = result?.choices?.[0]?.message?.content;
   if (typeof content !== "string") throw new ApiError("invalid_response", "AI 没有返回可解析的内容。");
-  let parsed: any;
-  try { parsed = JSON.parse(stripCodeFence(content)); } catch { throw new ApiError("invalid_response", "AI 返回内容不是有效 JSON。"); }
+  try { return JSON.parse(stripCodeFence(content)); } catch { throw new ApiError("invalid_response", "AI 返回内容不是有效 JSON。"); }
+}
+
+async function requestAiCookGeneration(settings: DeveloperSettings, payload: RecommendationRequest, violatedTerms: string[] = [], signal?: AbortSignal): Promise<CookRecommendationResponse> {
+  const avoids = (payload.preferences?.avoids ?? []).filter(Boolean).join("、") || "无";
+  const tastes = (payload.preferences?.tastes ?? []).filter(Boolean).join("、") || "无";
+  const system = [
+    "你是家庭菜谱生成助手。只输出 JSON，不要解释。",
+    "JSON 字段必须匹配 CookRecommendationResponse：intent、summary、mealPlans、recipes、source、totalMatches。",
+    "必须避开用户忌口食材，并尽量符合用户偏好。",
+    "recipes 中每道菜必须包含 name、cuisine、taste、tags、difficulty、cookTime、servings、coverUrl、reason、ingredients、steps、tips。"
+  ].join("\n");
+  const retryNote = violatedTerms.length > 0 ? `上一次结果命中了忌口：${violatedTerms.join("、")}。这次必须完全避开。` : "";
+  const user = [
+    `用户需求：${payload.query}`,
+    `模式：${payload.mode}`,
+    `忌口：${avoids}`,
+    `偏好：${tastes}`,
+    retryNote
+  ].filter(Boolean).join("\n");
+  const parsed = await requestAiJson(settings, system, user, 0.6, signal);
   const recipeValues = Array.isArray(parsed?.recipes) ? parsed.recipes : parsed?.recipe ? [parsed.recipe] : payload.mode === "RECIPE_SINGLE" && (parsed?.name || parsed?.title) ? [parsed] : [];
   const mealValues = Array.isArray(parsed?.mealPlans) ? parsed.mealPlans : parsed?.mealPlan ? [parsed.mealPlan] : payload.mode === "RECIPE_COMBO" && (parsed?.title || parsed?.name) ? [parsed] : [];
   const recipes = recipeValues.map((item: any, index: number) => normalizeRecipe(item, index, "ai_generated"));
@@ -112,25 +164,110 @@ async function aiCook(settings: DeveloperSettings, payload: RecommendationReques
   return { intent: payload.mode === "RECIPE_SINGLE" ? "RECIPE_SINGLE" : "RECIPE_COMBO", summary: String(parsed?.summary || "已根据你的需求生成推荐。"), mealPlans, recipes, source: "AI_GENERATED", totalMatches: recipes.length + mealPlans.length };
 }
 
-async function recipeSearch(settings: DeveloperSettings, payload: RecommendationRequest, signal?: AbortSignal): Promise<CookRecommendationResponse> {
+function expandAvoidTerms(avoids: string[]): string[] {
+  const terms = avoids.flatMap((item) => item.split(/[\s,，、/;；]+/)).map((item) => item.trim()).filter(Boolean);
+  const expanded = [...terms];
+  if (terms.some((term) => term.includes("牛羊"))) expanded.push("牛肉", "羊肉", "牛", "羊");
+  if (terms.includes("海鲜")) expanded.push("鱼", "虾", "蟹", "贝", "海鲜");
+  return Array.from(new Set(expanded));
+}
+
+function recipeText(recipe: Recipe): string {
+  return [
+    recipe.name,
+    recipe.reason,
+    recipe.tips,
+    recipe.ingredients.map((item) => `${item.name}${item.amount}`).join(" "),
+    recipe.steps.join(" ")
+  ].join(" ");
+}
+
+function violatedAvoidTerms(response: CookRecommendationResponse, avoids: string[]): string[] {
+  const serialized = JSON.stringify(response);
+  return expandAvoidTerms(avoids).filter((term) => serialized.includes(term));
+}
+
+function filterAvoidingTerms(response: CookRecommendationResponse, avoids: string[]): CookRecommendationResponse {
+  const terms = expandAvoidTerms(avoids);
+  if (terms.length === 0) return response;
+  const recipes = response.recipes.filter((recipe) => !terms.some((term) => recipeText(recipe).includes(term)));
+  const mealPlans = response.mealPlans.filter((plan) => !terms.some((term) => JSON.stringify(plan).includes(term)));
+  return { ...response, recipes, mealPlans, totalMatches: recipes.length + mealPlans.length };
+}
+
+async function aiCook(settings: DeveloperSettings, payload: RecommendationRequest, signal?: AbortSignal): Promise<CookRecommendationResponse> {
+  const first = await requestAiCookGeneration(settings, payload, [], signal);
+  const violated = violatedAvoidTerms(first, payload.preferences?.avoids ?? []);
+  let generation = first;
+  if (violated.length > 0) {
+    try {
+      generation = await requestAiCookGeneration(settings, payload, violated, signal);
+    } catch {
+      generation = first;
+    }
+  }
+  const filtered = filterAvoidingTerms(generation, payload.preferences?.avoids ?? []);
+  if (!filtered.recipes.length && !filtered.mealPlans.length) throw new ApiError("invalid_response", "AI 推荐命中了忌口，暂时没有可展示结果。");
+  return filtered;
+}
+
+async function searchRecipeSource(settings: DeveloperSettings, query: string, limit: number, signal?: AbortSignal): Promise<Recipe[]> {
   if (settings.recipeApiSource === "mxnzp") {
     if (!settings.recipeApiAppId || !settings.recipeApiSecret) throw new ApiError("config", "请填写 mxnzp app_id 和 app_secret。");
     const endpoint = safeExternalUrl(settings.recipeApiBaseUrl || "https://www.mxnzp.com/api/cookbook/search", ["www.mxnzp.com"]);
-    endpoint.searchParams.set("keyword", payload.query || "家常菜"); endpoint.searchParams.set("page", "1"); endpoint.searchParams.set("app_id", settings.recipeApiAppId); endpoint.searchParams.set("app_secret", settings.recipeApiSecret);
+    endpoint.searchParams.set("keyword", query); endpoint.searchParams.set("page", "1"); endpoint.searchParams.set("app_id", settings.recipeApiAppId); endpoint.searchParams.set("app_secret", settings.recipeApiSecret);
     const result = await externalJson(endpoint, { method: "GET" }, settings, signal);
     const list = result?.data?.list || result?.data?.records || result?.data || [];
-    const recipes = Array.isArray(list) ? list.slice(0, settings.recipePageSize).map((item: any, index: number) => normalizeRecipe({ ...item, id: `mxnzp_${item.id || index}` }, index, "mxnzp")) : [];
-    return { intent: payload.mode === "RECIPE_COMBO" ? "RECIPE_COMBO" : "RECIPE_SINGLE", summary: "已从 mxnzp 菜谱库筛选结果。", mealPlans: [], recipes, source: "DATABASE", totalMatches: recipes.length };
+    return Array.isArray(list) ? list.slice(0, limit).map((item: any, index: number) => normalizeRecipe({ ...item, id: `mxnzp_${item.id || index}` }, index, "mxnzp")) : [];
   }
   if (!settings.recipeApiAppId || !(settings.wanweiRecipeAppKey || settings.recipeApiSecret)) throw new ApiError("config", "请填写菜谱接口 AppID 和密钥。");
   const source = settings.recipeApiSource;
   const base = safeExternalUrl(settings.recipeApiBaseUrl || "https://route.showapi.com", source === "wanwei" ? ["route.showapi.com"] : undefined);
-  const endpoint = new URL("/1164-1", base); endpoint.searchParams.set("showapi_appid", settings.recipeApiAppId); endpoint.searchParams.set("showapi_sign", settings.wanweiRecipeAppKey || settings.recipeApiSecret); endpoint.searchParams.set("keyword", payload.query || "家常菜"); endpoint.searchParams.set("page", "1");
+  const endpoint = new URL("/1164-1", base); endpoint.searchParams.set("showapi_appid", settings.recipeApiAppId); endpoint.searchParams.set("showapi_sign", settings.wanweiRecipeAppKey || settings.recipeApiSecret); endpoint.searchParams.set("keyword", query); endpoint.searchParams.set("page", "1");
   const result = await externalJson(endpoint, { method: "GET" }, settings, signal);
   const body = result?.showapi_res_body || result?.data || result;
   const list = body?.data || body?.list || body?.pagebean?.contentlist || [];
-  const recipes = Array.isArray(list) ? list.slice(0, settings.recipePageSize).map((item: any, index: number) => normalizeRecipe(item, index, source)) : [];
-  return { intent: payload.mode === "RECIPE_COMBO" ? "RECIPE_COMBO" : "RECIPE_SINGLE", summary: `已从${source === "wanwei" ? "万维" : "自定义"}菜谱源筛选结果。`, mealPlans: [], recipes, source: "DATABASE", totalMatches: recipes.length };
+  return Array.isArray(list) ? list.slice(0, limit).map((item: any, index: number) => normalizeRecipe(item, index, source)) : [];
+}
+
+function distinctRecipes(recipes: Recipe[]): Recipe[] {
+  const seen = new Set<string>();
+  return recipes.filter((recipe) => {
+    const key = recipe.id || recipe.name;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function recipeSearch(settings: DeveloperSettings, payload: RecommendationRequest, signal?: AbortSignal): Promise<CookRecommendationResponse> {
+  const intent = payload.mode === "RECIPE_COMBO" ? "RECIPE_COMBO" : "RECIPE_SINGLE";
+  if (!payload.broadSearch) {
+    const recipes = await searchRecipeSource(settings, payload.query || "家常菜", settings.recipePageSize, signal);
+    const sourceName = settings.recipeApiSource === "mxnzp" ? "mxnzp" : settings.recipeApiSource === "wanwei" ? "万维" : "自定义";
+    return { intent, summary: `已从${sourceName}菜谱源筛选结果。`, mealPlans: [], recipes, source: "DATABASE", totalMatches: recipes.length };
+  }
+
+  const recipes: Recipe[] = [];
+  let failures = 0;
+  for (const term of BROAD_RECIPE_SEARCH_TERMS) {
+    try {
+      recipes.push(...await searchRecipeSource(settings, term, 50, signal));
+      if (distinctRecipes(recipes).length >= 50) break;
+    } catch {
+      failures += 1;
+    }
+  }
+  const distinct = distinctRecipes(recipes).slice(0, 50);
+  return {
+    intent,
+    summary: distinct.length ? `已为你随机扩大候选范围，找到 ${distinct.length} 道菜谱。` : "暂时没找到合适的结果，可以换个关键词或放宽条件再试。",
+    mealPlans: [],
+    recipes: distinct,
+    fallbackReason: distinct.length ? null : failures ? "菜谱服务暂时不可用，请稍后再试。" : "暂时没找到合适的结果，可以换个关键词或放宽条件再试。",
+    source: "DATABASE",
+    totalMatches: distinct.length
+  };
 }
 
 export function developerCook(settings: DeveloperSettings, payload: RecommendationRequest, signal?: AbortSignal): Promise<CookRecommendationResponse> {
@@ -151,21 +288,163 @@ function coordinate(value: unknown): number | undefined {
   const number = Number(value); return Number.isFinite(number) ? number : undefined;
 }
 
+function fallbackRestaurantKeywordPlan(query: string): RestaurantKeywordPlan {
+  if (/日料|日本|寿司|放题|自助/.test(query)) {
+    return {
+      keywords: ["日料自助", "日本料理", "日式放题", "寿司", "自助餐"],
+      mustMatch: query.includes("自助") || query.includes("放题") ? ["自助", "放题"] : [],
+      preferMatch: ["日料", "日本料理", "寿司", "刺身", "日式"],
+      negativeMatch: []
+    };
+  }
+  if (/娃|孩子|儿童|亲子|家庭/.test(query)) {
+    return {
+      keywords: ["亲子餐厅", "儿童友好", "商场餐饮", "家庭餐厅", "清淡餐厅"],
+      mustMatch: [],
+      preferMatch: ["亲子", "儿童", "家庭", "商场", "清淡"],
+      negativeMatch: ["酒吧", "夜店"]
+    };
+  }
+  if (/清淡|不辣|少油|舒服/.test(query)) {
+    return {
+      keywords: ["清淡餐厅", "粥", "汤", "家常菜", "轻食"],
+      mustMatch: [],
+      preferMatch: ["清淡", "粥", "汤", "轻食", "家常"],
+      negativeMatch: ["麻辣", "烧烤", "火锅"]
+    };
+  }
+  const clean = query.trim() || "餐厅";
+  return { keywords: [clean, "餐厅"], mustMatch: [], preferMatch: [clean], negativeMatch: [] };
+}
+
+async function restaurantKeywordPlan(settings: DeveloperSettings, payload: RecommendationRequest, signal?: AbortSignal): Promise<RestaurantKeywordPlan> {
+  if (payload.broadSearch) {
+    return { keywords: BROAD_RESTAURANT_SEARCH_TERMS, mustMatch: [], preferMatch: BROAD_RESTAURANT_SEARCH_TERMS, negativeMatch: [] };
+  }
+  if (!settings.aiApiKey || !settings.aiModel) return fallbackRestaurantKeywordPlan(payload.query);
+  const system = [
+    "你是餐厅搜索关键词解析助手。只输出 JSON，不要解释。",
+    "字段必须是 summary、keywords、mustMatch、preferMatch、negativeMatch、searchStrategy。",
+    "keywords 是要分别用于地图搜索的关键词，不要把所有词拼成一个长关键词。",
+    "searchStrategy 固定输出 separate。"
+  ].join("\n");
+  try {
+    const parsed = await requestAiJson(settings, system, `用户附近吃需求：${payload.query}`, 0.2, signal);
+    const keywords = stringArray(parsed?.keywords).filter(Boolean);
+    return {
+      keywords: keywords.length ? keywords.slice(0, 12) : ["餐厅"],
+      mustMatch: stringArray(parsed?.mustMatch),
+      preferMatch: stringArray(parsed?.preferMatch),
+      negativeMatch: stringArray(parsed?.negativeMatch)
+    };
+  } catch {
+    return fallbackRestaurantKeywordPlan(payload.query);
+  }
+}
+
+function restaurantCandidate(raw: any): RestaurantCandidate | null {
+  const name = String(raw?.name || "").trim();
+  if (!name) return null;
+  const biz = isRecord(raw?.biz_ext) ? raw.biz_ext : {};
+  const photos = Array.isArray(raw?.photos) ? raw.photos : [];
+  const [longitude, latitude] = String(raw?.location || "").split(",").map(Number);
+  const type = String(raw?.type || "餐饮");
+  return {
+    id: String(raw?.id || ""),
+    name,
+    type,
+    address: String(raw?.address || ""),
+    distance: Number(String(raw?.distance || "")) || 999999,
+    rating: String(biz.rating || "暂无"),
+    cost: String(biz.cost || ""),
+    businessArea: String(raw?.business_area || ""),
+    tags: type.split(";").filter(Boolean).slice(0, 3),
+    description: String(raw?.tag || ""),
+    coverUrl: String(photos[0]?.url || ""),
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null,
+    phone: String(raw?.tel || "")
+  };
+}
+
+function restaurantScore(candidate: RestaurantCandidate, query: string, plan: RestaurantKeywordPlan): number {
+  const text = [candidate.name, candidate.type, candidate.address, candidate.businessArea, candidate.tags.join(" "), candidate.description].join(" ");
+  let value = 0;
+  for (const term of plan.mustMatch) if (term && text.includes(term)) value += 40;
+  for (const term of plan.preferMatch) if (term && text.includes(term)) value += 16;
+  for (const term of plan.negativeMatch) if (term && text.includes(term)) value -= 30;
+  for (const term of query.split(/[\s,，、/]+/)) if (term && text.includes(term)) value += 8;
+  const rating = Number(candidate.rating);
+  if (Number.isFinite(rating)) value += rating * 3;
+  value += Math.max(0, 10 - candidate.distance / 1000);
+  return value;
+}
+
+function parseRadiusMeters(query: string, defaultKm: number): number {
+  const km = query.match(/(\d+(?:\.\d+)?)\s*km/i)?.[1] ?? query.match(/(\d+(?:\.\d+)?)\s*公里/)?.[1];
+  if (km) return Math.round(Number(km) * 1000);
+  const meters = query.match(/(\d+)\s*m/i)?.[1] ?? query.match(/(\d+)\s*米/)?.[1];
+  if (meters) return Number(meters);
+  return Math.max(1, Math.min(10, defaultKm)) * 1000;
+}
+
+function restaurantDto(candidate: RestaurantCandidate): Restaurant {
+  return {
+    id: `amap_${candidate.id || `${candidate.name}_${candidate.address}`}`,
+    source: "amap",
+    name: candidate.name,
+    category: candidate.type.split(";")[0] || "餐饮",
+    tags: candidate.tags,
+    address: candidate.address,
+    distance: candidate.distance === 999999 ? "" : `${candidate.distance}m`,
+    rating: candidate.rating,
+    price: candidate.cost ? `人均 ¥${candidate.cost}` : "人均暂无",
+    open: "营业状态以门店为准",
+    phone: candidate.phone,
+    coverUrl: candidate.coverUrl,
+    reason: "这家店和你的搜索更接近，距离也比较合适。",
+    latitude: candidate.latitude,
+    longitude: candidate.longitude
+  };
+}
+
 export async function developerRestaurants(settings: DeveloperSettings, payload: RecommendationRequest, signal?: AbortSignal): Promise<RestaurantRecommendationResponse> {
   if (!settings.amapWebKey) throw new ApiError("config", "请填写高德 Web Key。");
   let latitude = coordinate(payload.location?.latitude); let longitude = coordinate(payload.location?.longitude);
+  const locationText = payload.location?.text?.trim() || "上海人民广场";
   if (latitude == null || longitude == null) {
-    const geocode = safeExternalUrl("https://restapi.amap.com/v3/geocode/geo", ["restapi.amap.com"]); geocode.searchParams.set("key", settings.amapWebKey); geocode.searchParams.set("address", payload.location?.text || "");
+    const geocode = safeExternalUrl("https://restapi.amap.com/v3/geocode/geo", ["restapi.amap.com"]); geocode.searchParams.set("key", settings.amapWebKey); geocode.searchParams.set("address", locationText);
     const geo = await externalJson(geocode, { method: "GET" }, settings, signal); const parts = String(geo?.geocodes?.[0]?.location || "").split(","); longitude = coordinate(parts[0]); latitude = coordinate(parts[1]);
   }
   if (latitude == null || longitude == null) throw new ApiError("invalid_response", "高德没有返回有效位置。");
-  const around = safeExternalUrl("https://restapi.amap.com/v3/place/around", ["restapi.amap.com"]); around.searchParams.set("key", settings.amapWebKey); around.searchParams.set("location", `${longitude},${latitude}`); around.searchParams.set("keywords", payload.query || "美食"); around.searchParams.set("types", "050000"); around.searchParams.set("radius", String(Math.min(10000, Math.max(500, Number(payload.preferences?.defaultDistanceKm || 5) * 1000)))); around.searchParams.set("offset", "20"); around.searchParams.set("extensions", "all");
-  const result = await externalJson(around, { method: "GET" }, settings, signal);
-  const restaurants: Restaurant[] = (Array.isArray(result?.pois) ? result.pois : []).slice(0, Number(payload.preferences?.restaurantResultLimit || 50)).map((poi: any) => {
-    const [lng, lat] = String(poi.location || "").split(",").map(Number); const biz = poi.biz_ext || {}; const photo = Array.isArray(poi.photos) ? poi.photos[0]?.url : "";
-    return { id: `amap_${poi.id}`, source: "amap", name: String(poi.name || "餐厅"), category: String(poi.type || "餐饮").split(";")[0], tags: [String(poi.type || "餐饮").split(";")[0]].filter(Boolean), address: String(poi.address || "地址以地图为准"), distance: poi.distance ? `${poi.distance}m` : "距离未知", rating: String(biz.rating || "暂无"), price: biz.cost ? `人均 ¥${biz.cost}` : "人均暂无", open: "营业状态以地图为准", phone: String(poi.tel || "电话暂无"), coverUrl: String(photo || ""), reason: "与搜索需求接近。", latitude: lat, longitude: lng };
-  });
-  return { restaurants, locationUsed: { latitude, longitude, text: payload.location?.text }, fallbackReason: restaurants.length ? null : "附近暂未找到符合条件的餐厅。" };
+  const plan = await restaurantKeywordPlan(settings, payload, signal);
+  const radius = Math.max(500, Math.min(10000, parseRadiusMeters(payload.query, payload.preferences?.defaultDistanceKm ?? 5)));
+  const merged = new Map<string, RestaurantCandidate>();
+  for (const keyword of plan.keywords.filter(Boolean)) {
+    const around = safeExternalUrl("https://restapi.amap.com/v3/place/around", ["restapi.amap.com"]);
+    around.searchParams.set("key", settings.amapWebKey);
+    around.searchParams.set("location", `${longitude},${latitude}`);
+    around.searchParams.set("keywords", keyword);
+    around.searchParams.set("types", "050000");
+    around.searchParams.set("radius", String(radius));
+    around.searchParams.set("offset", "20");
+    around.searchParams.set("page", "1");
+    around.searchParams.set("extensions", "all");
+    const result = await externalJson(around, { method: "GET" }, settings, signal);
+    if (result?.status != null && String(result.status) !== "1") continue;
+    for (const raw of Array.isArray(result?.pois) ? result.pois : []) {
+      const candidate = restaurantCandidate(raw);
+      if (!candidate) continue;
+      const key = candidate.id || `${candidate.name}|${candidate.address}`;
+      if (!merged.has(key)) merged.set(key, candidate);
+    }
+  }
+  const limit = Math.max(1, Math.min(50, payload.preferences?.restaurantResultLimit ?? 50));
+  const restaurants = [...merged.values()]
+    .sort((left, right) => restaurantScore(right, payload.query, plan) - restaurantScore(left, payload.query, plan) || left.distance - right.distance)
+    .slice(0, limit)
+    .map(restaurantDto);
+  return { restaurants, locationUsed: { latitude, longitude, text: locationText }, fallbackReason: restaurants.length ? null : "附近餐厅数据暂时加载失败，请稍后再试。" };
 }
 
 function addressFromAmap(payload: any): string {

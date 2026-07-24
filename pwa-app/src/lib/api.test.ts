@@ -94,7 +94,7 @@ describe("ApiGateway error mapping", () => {
     await expect(gateway.status()).resolves.toMatchObject({ proxyReachable: true, message: expect.stringContaining("浏览器直连") });
     await expect(gateway.mealPlan("meal-id")).rejects.toMatchObject({ kind: "config" });
     const urls = fetchMock.mock.calls.map((call) => String(call[0]));
-    expect(urls).toHaveLength(3);
+    expect(urls).toHaveLength(4);
     expect(urls.every((url) => url.startsWith("https://"))).toBe(true);
     expect(urls.some((url) => url.includes("vercel") || url.includes("/api/direct") || url.includes("/api/backend"))).toBe(false);
   });
